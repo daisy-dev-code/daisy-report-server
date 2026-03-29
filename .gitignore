@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+vendor/
+packages/
+
+# Build output
+frontend/dist/
+backend-php/cache/
+backend-dotnet/bin/
+backend-dotnet/obj/
+java-report-service/target/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.user
+*.sln.docstates
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Runtime
+*.pid
+*.seed
+*.pid.lock
+
+# Redis dump
+dump.rdb
+
+# PHP
+*.cache
+.phpunit.result.cache
+
+# .NET
+*.nupkg
+project.lock.json
+
+# Java
+*.class
+*.jar
+!java-report-service/lib/*.jar
+
+# Temp
+tmp/
+temp/
+*.tmp
+*.swp

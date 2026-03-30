@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ReportsPage from './pages/ReportsPage';
 import DatasourcesPage from './pages/DatasourcesPage';
+import DiscoveryPage from './pages/DiscoveryPage';
 import SchedulerPage from './pages/SchedulerPage';
 import PowerBiPage from './pages/PowerBiPage';
 import PowerBiEmbedPage from './pages/PowerBiEmbedPage';
@@ -35,6 +36,7 @@ export default function App() {
             <Route path="/" element={<DashboardPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/datasources" element={<DatasourcesPage />} />
+            <Route path="/discovery" element={<DiscoveryPage />} />
             <Route path="/scheduler" element={<SchedulerPage />} />
             <Route path="/powerbi" element={<PowerBiPage />} />
             <Route path="/powerbi/embed/:workspaceId/:reportId" element={<PowerBiEmbedPage />} />

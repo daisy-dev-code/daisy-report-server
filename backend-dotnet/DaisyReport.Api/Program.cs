@@ -1,5 +1,7 @@
 using System.Text;
 using Dapper;
+using DaisyReport.Api.Discovery.Endpoints;
+using DaisyReport.Api.Discovery.Services;
 using DaisyReport.Api.DynamicList;
 using DaisyReport.Api.Endpoints;
 using DaisyReport.Api.ExpressionEngine;
@@ -72,6 +74,13 @@ try
     builder.Services.AddSingleton<IPowerBiAuthService, PowerBiAuthService>();
     builder.Services.AddScoped<IPowerBiSyncService, PowerBiSyncService>();
     builder.Services.AddScoped<IPowerBiRepository, PowerBiRepository>();
+
+    // Discovery Engine
+    builder.Services.AddHttpClient();
+    builder.Services.AddSingleton<IPortScanner, PortScanner>();
+    builder.Services.AddSingleton<IServiceProber, ServiceProber>();
+    builder.Services.AddSingleton<IDnsResolver, DnsResolver>();
+    builder.Services.AddScoped<IDiscoveryService, DiscoveryService>();
 
     // Background Services
     builder.Services.AddHostedService<SchedulerService>();
@@ -169,6 +178,7 @@ try
     app.MapNotificationEndpoints();
     app.MapConstantEndpoints();
     app.MapPowerBiEndpoints();
+    app.MapDiscoveryEndpoints();
 
     app.Run();
 }

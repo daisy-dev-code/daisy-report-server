@@ -1,4 +1,7 @@
+using DaisyReport.Api.DynamicList;
+using DaisyReport.Api.Middleware;
 using DaisyReport.Api.Models;
+using DaisyReport.Api.ReportEngine;
 using DaisyReport.Api.Repositories;
 
 namespace DaisyReport.Api.Endpoints;
@@ -15,6 +18,13 @@ public static class ReportEndpoints
         group.MapPut("/{id:long}", UpdateReport);
         group.MapDelete("/{id:long}", DeleteReport);
         group.MapGet("/{id:long}/parameters", GetParameters);
+        group.MapPost("/{id:long}/execute", ExecuteReport);
+        group.MapGet("/{id:long}/preview", PreviewReport);
+
+        // Dynamic List advanced endpoints
+        group.MapPost("/{id:long}/dynamic-list/execute", ExecuteDynamicList);
+        group.MapGet("/{id:long}/dynamic-list/preview", PreviewDynamicList);
+        group.MapPost("/{id:long}/dynamic-list/export", ExportDynamicList);
     }
 
     private static async Task<IResult> ListReports(
@@ -154,6 +164,194 @@ public static class ReportEndpoints
             })
         });
     }
+
+    private static async Task<IResult> ExecuteReport(
+        long id,
+        ExecuteReportRequest body,
+        IReportExecutionPipeline pipeline,
+        HttpContext httpContext)
+    {
+        var userId = httpContext.GetUserId();
+        if (!userId.HasValue)
+            return Results.Unauthorized();
+
+        var request = new ReportExecutionRequest
+        {
+            ReportId = id,
+            UserId = userId.Value,
+            Parameters = body.Parameters ?? new Dictionary<string, string>(),
+            OutputFormat = body.OutputFormat ?? "JSON",
+            PageSize = body.PageSize,
+            Page = body.Page
+        };
+
+        var result = await pipeline.ExecuteAsync(request);
+
+        if (!result.Success)
+        {
+            return Results.Problem(result.ErrorMessage ?? "Report execution failed.", statusCode: 500);
+        }
+
+        // For JSON format, return the structured data directly
+        if ((body.OutputFormat ?? "JSON").Equals("JSON", StringComparison.OrdinalIgnoreCase))
+        {
+            return Results.Ok(new
+            {
+                success = true,
+                columns = result.Columns,
+                rows = result.Rows,
+                totalRows = result.TotalRows,
+                executionTimeMs = result.ExecutionTimeMs,
+                generatedSql = result.GeneratedSql
+            });
+        }
+
+        // For other formats, return the raw content
+        if (result.Data != null)
+        {
+            return Results.Bytes(result.Data, result.ContentType);
+        }
+
+        return Results.Ok(new { success = true, data = result.DataAsString });
+    }
+
+    private static async Task<IResult> PreviewReport(
+        long id,
+        IReportExecutionPipeline pipeline,
+        HttpContext httpContext)
+    {
+        var userId = httpContext.GetUserId();
+        if (!userId.HasValue)
+            return Results.Unauthorized();
+
+        // Collect query string parameters that start with "p_" as report parameters
+        var parameters = new Dictionary<string, string>();
+        foreach (var kvp in httpContext.Request.Query)
+        {
+            if (kvp.Key.StartsWith("p_", StringComparison.OrdinalIgnoreCase) && kvp.Value.Count > 0)
+            {
+                parameters[kvp.Key[2..]] = kvp.Value.ToString();
+            }
+        }
+
+        var request = new ReportExecutionRequest
+        {
+            ReportId = id,
+            UserId = userId.Value,
+            Parameters = parameters,
+            OutputFormat = "JSON",
+            PageSize = 50,
+            Page = 1
+        };
+
+        var result = await pipeline.ExecuteAsync(request);
+
+        if (!result.Success)
+        {
+            return Results.Problem(result.ErrorMessage ?? "Report execution failed.", statusCode: 500);
+        }
+
+        return Results.Ok(new
+        {
+            success = true,
+            columns = result.Columns,
+            rows = result.Rows,
+            totalRows = result.TotalRows,
+            executionTimeMs = result.ExecutionTimeMs
+        });
+    }
+    // ── Dynamic List Advanced Endpoints ────────────────────────────────────
+
+    private static async Task<IResult> ExecuteDynamicList(
+        long id,
+        DynamicListRequest body,
+        IDynamicListEngine engine)
+    {
+        try
+        {
+            var result = await engine.ExecuteAsync(id, body);
+
+            return Results.Ok(new
+            {
+                success = true,
+                columns = result.Columns,
+                rows = result.Rows,
+                totalRows = result.TotalRows,
+                page = result.Page,
+                pageSize = result.PageSize,
+                generatedSql = result.GeneratedSql
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return Results.NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { error = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> PreviewDynamicList(
+        long id,
+        IDynamicListEngine engine,
+        int maxRows = 50)
+    {
+        try
+        {
+            var result = await engine.PreviewAsync(id, maxRows);
+
+            return Results.Ok(new
+            {
+                success = true,
+                columns = result.Columns,
+                rows = result.Rows,
+                totalRows = result.TotalRows
+            });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return Results.NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { error = ex.Message });
+        }
+    }
+
+    private static async Task<IResult> ExportDynamicList(
+        long id,
+        DynamicListRequest body,
+        IDynamicListEngine engine)
+    {
+        try
+        {
+            var format = body.Format ?? "CSV";
+            var data = await engine.ExportAsync(id, body, format);
+
+            var (contentType, extension) = format.ToUpperInvariant() switch
+            {
+                "CSV" => ("text/csv", "csv"),
+                "JSON" => ("application/json", "json"),
+                "HTML" => ("text/html", "html"),
+                _ => ("application/octet-stream", "bin")
+            };
+
+            return Results.File(data, contentType, $"report_{id}.{extension}");
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return Results.NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.BadRequest(new { error = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return Results.BadRequest(new { error = ex.Message });
+        }
+    }
 }
 
 public record CreateReportRequest(
@@ -176,3 +374,9 @@ public record UpdateReportRequest(
     long? DatasourceId,
     string? QueryText,
     string? Config);
+
+public record ExecuteReportRequest(
+    Dictionary<string, string>? Parameters,
+    string? OutputFormat,
+    int? PageSize,
+    int? Page);

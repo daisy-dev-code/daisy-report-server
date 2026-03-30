@@ -1,7 +1,10 @@
 using System.Text;
+using DaisyReport.Api.DynamicList;
 using DaisyReport.Api.Endpoints;
+using DaisyReport.Api.ExpressionEngine;
 using DaisyReport.Api.Infrastructure;
 using DaisyReport.Api.Middleware;
+using DaisyReport.Api.ReportEngine;
 using DaisyReport.Api.Repositories;
 using DaisyReport.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -28,8 +31,14 @@ try
     // Services
     builder.Services.AddSingleton<IPasswordHasher, Argon2PasswordHasher>();
     builder.Services.AddSingleton<IJwtService, JwtService>();
+    builder.Services.AddSingleton<IExpressionService, ExpressionService>();
     builder.Services.AddScoped<IUserService, UserService>();
     builder.Services.AddScoped<IAclService, AclService>();
+
+    // Report Engine
+    builder.Services.AddScoped<IReportExecutionPipeline, ReportExecutionPipeline>();
+    builder.Services.AddScoped<IOutputFormatter, OutputFormatter>();
+    builder.Services.AddScoped<EngineRouter>();
 
     // Repositories
     builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -43,6 +52,10 @@ try
     builder.Services.AddScoped<IDatasinkRepository, DatasinkRepository>();
     builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
     builder.Services.AddScoped<ISchedulerRepository, SchedulerRepository>();
+
+    // Dynamic List Engine
+    builder.Services.AddScoped<IDynamicListEngine, DynamicListEngine>();
+    builder.Services.AddScoped<IExportService, ExportService>();
 
     // Background Services
     builder.Services.AddHostedService<SchedulerService>();
@@ -108,6 +121,7 @@ try
     app.MapPermissionEndpoints();
     app.MapDashboardEndpoints();
     app.MapSchedulerEndpoints();
+    app.MapExportEndpoints();
 
     app.Run();
 }

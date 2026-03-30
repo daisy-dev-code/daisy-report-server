@@ -99,6 +99,29 @@ public class DiscoveryService : IDiscoveryService
             .Select(r => r!)
             .ToList();
 
+        // If no database services found but host is alive, try SQL Server via hostname
+        // (SQL Server may be behind firewall but reachable via named pipes / hostname)
+        if (!result.Services.Any() && result.IsAlive)
+        {
+            var hostToTry = result.Hostname ?? host;
+            _logger.LogInformation("No open database ports on {Host}, trying SQL Server connection by hostname {Hostname}", host, hostToTry);
+
+            var sqlResult = await _serviceProber.ProbeSqlServerAsync(hostToTry, 1433, username, password);
+            if (sqlResult != null && sqlResult.IsAccessible)
+            {
+                result.Services.Add(sqlResult);
+            }
+            else
+            {
+                // Try direct connection string approach (named pipes, etc.)
+                var directResult = await TryDirectSqlConnectionAsync(hostToTry, username, password);
+                if (directResult != null)
+                {
+                    result.Services.Add(directResult);
+                }
+            }
+        }
+
         // Mark host as alive if any service responded, even if ping failed
         if (result.Services.Any(s => s.IsAccessible))
         {
@@ -298,5 +321,91 @@ public class DiscoveryService : IDiscoveryService
             datasourceId, name, discovery.ServiceType, discovery.Host, discovery.Port);
 
         return datasourceId;
+    }
+
+    /// <summary>
+    /// Try connecting to SQL Server / MySQL by hostname using .NET data providers directly.
+    /// This works even when TCP port scanning fails (named pipes, Windows auth, etc.)
+    /// </summary>
+    private async Task<DiscoveryResult?> TryDirectSqlConnectionAsync(string host, string? username, string? password)
+    {
+        // Try SQL Server with Windows Auth (integrated security)
+        try
+        {
+            var connStr = $"Server={host};Database=master;Integrated Security=true;TrustServerCertificate=true;Connect Timeout=5";
+            using var conn = new Microsoft.Data.SqlClient.SqlConnection(connStr);
+            await conn.OpenAsync();
+            var version = (string?)await new Microsoft.Data.SqlClient.SqlCommand("SELECT @@VERSION", conn).ExecuteScalarAsync();
+            var databases = new List<string>();
+            using var cmd = new Microsoft.Data.SqlClient.SqlCommand("SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name", conn);
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync()) databases.Add(reader.GetString(0));
+
+            return new DiscoveryResult
+            {
+                Host = host,
+                Port = 1433,
+                ServiceType = "MSSQL",
+                ServiceVersion = version?.Split('\n').FirstOrDefault()?.Trim(),
+                IsAccessible = true,
+                LatencyMs = 0,
+                Databases = databases,
+                ConnectionString = $"Server={host};Database=;Integrated Security=true;TrustServerCertificate=true"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("SQL Server Windows Auth failed for {Host}: {Error}", host, ex.Message);
+        }
+
+        // Try SQL Server with credentials if provided
+        if (!string.IsNullOrEmpty(username))
+        {
+            try
+            {
+                var connStr = $"Server={host};Database=master;User Id={username};Password={password};TrustServerCertificate=true;Connect Timeout=5";
+                using var conn = new Microsoft.Data.SqlClient.SqlConnection(connStr);
+                await conn.OpenAsync();
+                var version = (string?)await new Microsoft.Data.SqlClient.SqlCommand("SELECT @@VERSION", conn).ExecuteScalarAsync();
+
+                return new DiscoveryResult
+                {
+                    Host = host,
+                    Port = 1433,
+                    ServiceType = "MSSQL",
+                    ServiceVersion = version?.Split('\n').FirstOrDefault()?.Trim(),
+                    IsAccessible = true,
+                    ConnectionString = $"Server={host};Database=;User Id={username};Password=;TrustServerCertificate=true"
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug("SQL Server credential auth failed for {Host}: {Error}", host, ex.Message);
+            }
+        }
+
+        // Try MySQL by hostname
+        try
+        {
+            var connStr = $"Server={host};Port=3306;User={username ?? "root"};Password={password ?? ""};SslMode=None;Connect Timeout=5;AllowUserVariables=true";
+            using var conn = new MySqlConnector.MySqlConnection(connStr);
+            await conn.OpenAsync();
+
+            return new DiscoveryResult
+            {
+                Host = host,
+                Port = 3306,
+                ServiceType = "MYSQL",
+                ServiceVersion = conn.ServerVersion,
+                IsAccessible = true,
+                ConnectionString = $"Server={host};Port=3306;Database=;User={username ?? "root"};Password=;"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("MySQL direct connect failed for {Host}: {Error}", host, ex.Message);
+        }
+
+        return null;
     }
 }

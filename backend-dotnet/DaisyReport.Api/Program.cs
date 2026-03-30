@@ -133,14 +133,15 @@ try
     // Ensure admin password hash is valid (seed data may have placeholder hash)
     try
     {
+        var defaultAdminPass = builder.Configuration["AdminPassword"] ?? Environment.GetEnvironmentVariable("ADMIN_PASSWORD") ?? "DaisyAdmin2026!";
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<IDatabase>();
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         using var conn = await db.GetConnectionAsync();
         var adminHash = await conn.ExecuteScalarAsync<string>("SELECT password_hash FROM RS_USER WHERE username = 'admin'");
-        if (adminHash != null && !hasher.VerifyPassword("DaisyAdmin2026!", adminHash))
+        if (adminHash != null && !hasher.VerifyPassword(defaultAdminPass, adminHash))
         {
-            var newHash = hasher.HashPassword("DaisyAdmin2026!");
+            var newHash = hasher.HashPassword(defaultAdminPass);
             await conn.ExecuteAsync("UPDATE RS_USER SET password_hash = @Hash WHERE username = 'admin'", new { Hash = newHash });
             Log.Information("Admin password hash updated to valid Argon2id format");
         }

@@ -10,10 +10,12 @@ backend-dotnet/bin/
 backend-dotnet/obj/
 java-report-service/target/
 
-# Environment
+# Environment & secrets
 .env
 .env.local
 .env.*.local
+appsettings.Development.json
+**/appsettings.Development.json
 
 # IDE
 .idea/

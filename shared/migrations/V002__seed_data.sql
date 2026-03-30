@@ -46,7 +46,7 @@ INSERT INTO RS_ORG_UNIT (name, description, parent_id)
 VALUES ('Root', 'Root organizational unit', NULL);
 
 -- Self-referencing closure entry
-INSERT INTO RS_ORG_UNIT_CLOSURE (ancestor_id, descendant_id, depth)
+INSERT IGNORE INTO RS_ORG_UNIT_CLOSURE (ancestor_id, descendant_id, depth)
 VALUES (1, 1, 0);
 
 -- ============================================================================
@@ -140,7 +140,7 @@ INSERT INTO RS_REPORT_FOLDER (name, parent_id, description) VALUES
 ('Trash',   NULL, 'Deleted reports awaiting permanent removal');
 
 -- Report Folder closure entries (self-referencing depth=0)
-INSERT INTO RS_REPORT_FOLDER_CLOSURE (ancestor_id, descendant_id, depth) VALUES
+INSERT IGNORE INTO RS_REPORT_FOLDER_CLOSURE (ancestor_id, descendant_id, depth) VALUES
 (1, 1, 0),
 (2, 2, 0),
 (3, 3, 0);
@@ -151,7 +151,7 @@ INSERT INTO RS_DASHBOARD_FOLDER (name, parent_id) VALUES
 ('Library', NULL);
 
 -- Dashboard Folder closure entries (self-referencing depth=0)
-INSERT INTO RS_DASHBOARD_FOLDER_CLOSURE (ancestor_id, descendant_id, depth) VALUES
+INSERT IGNORE INTO RS_DASHBOARD_FOLDER_CLOSURE (ancestor_id, descendant_id, depth) VALUES
 (1, 1, 0),
 (2, 2, 0);
 
@@ -238,7 +238,7 @@ VALUES (1, 'com.mysql.cj.jdbc.Driver', 'jdbc:mysql://localhost:3306/daisy_sample
 INSERT INTO RS_REPORT_FOLDER (name, parent_id, description) VALUES
 ('Demo Reports', 1, 'Sample reports for evaluation');
 
-INSERT INTO RS_REPORT_FOLDER_CLOSURE (ancestor_id, descendant_id, depth) VALUES
+INSERT IGNORE INTO RS_REPORT_FOLDER_CLOSURE (ancestor_id, descendant_id, depth) VALUES
 (4, 4, 0),
 (1, 4, 1);
 

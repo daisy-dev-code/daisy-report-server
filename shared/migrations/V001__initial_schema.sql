@@ -14,7 +14,7 @@ SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTI
 -- SCHEMA VERSION
 -- ============================================================================
 
-CREATE TABLE RS_SCHEMA_VERSION (
+CREATE TABLE IF NOT EXISTS RS_SCHEMA_VERSION (
     version       INT          NOT NULL,
     major         INT          NOT NULL,
     minor         INT          NOT NULL,
@@ -1242,7 +1242,7 @@ CREATE TABLE RS_ALERT_RULE_STATE (
     current_state      ENUM('NORMAL','PENDING','ALERTING','RESOLVED','NO_DATA','ERROR') NOT NULL DEFAULT 'NORMAL',
     state_changed_at   DATETIME NULL,
     last_evaluation_at DATETIME NULL,
-    last_value         DOUBLE NULL,
+    `last_value`       DOUBLE NULL,
     evaluation_count   BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (id),
     UNIQUE KEY uq_ars_rule (rule_id),

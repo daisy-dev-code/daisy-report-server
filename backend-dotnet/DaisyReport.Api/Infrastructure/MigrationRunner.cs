@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Dapper;
+using MySqlConnector;
 
 namespace DaisyReport.Api.Infrastructure;
 
@@ -29,7 +30,7 @@ public class MigrationRunner
 
         // Create migration tracking table if it doesn't exist
         await connection.ExecuteAsync(@"
-            CREATE TABLE IF NOT EXISTS RS_SCHEMA_VERSION (
+            CREATE TABLE IF NOT EXISTS _migration_log (
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 filename VARCHAR(255) NOT NULL UNIQUE,
                 checksum VARCHAR(64) NOT NULL,
@@ -59,7 +60,7 @@ public class MigrationRunner
             var checksum = ComputeChecksum(sql);
 
             var existing = await connection.QuerySingleOrDefaultAsync<(string Checksum, DateTime AppliedAt)?>(
-                "SELECT checksum AS Checksum, applied_at AS AppliedAt FROM RS_SCHEMA_VERSION WHERE filename = @Filename",
+                "SELECT checksum AS Checksum, applied_at AS AppliedAt FROM _migration_log WHERE filename = @Filename",
                 new { Filename = filename });
 
             if (existing != null)
@@ -82,17 +83,27 @@ public class MigrationRunner
             try
             {
                 // Split on delimiter for multi-statement SQL files
+                // Use raw MySqlCommand (not Dapper) to avoid @-parameter parsing issues
                 var statements = SplitSqlStatements(sql);
                 foreach (var statement in statements)
                 {
                     if (!string.IsNullOrWhiteSpace(statement))
                     {
-                        await connection.ExecuteAsync(statement);
+                        try
+                        {
+                            using var cmd = new MySqlCommand(statement, (MySqlConnection)connection);
+                            await cmd.ExecuteNonQueryAsync();
+                        }
+                        catch (MySqlException ex) when (ex.Number is 1050 or 1062 or 1061 or 1304 or 1359 or 1060)
+                        {
+                            // 1050 = Table already exists, 1062 = Duplicate entry, 1061 = Duplicate key name
+                            _logger.LogDebug("Skipping already-applied statement in {Filename}: {Message}", filename, ex.Message);
+                        }
                     }
                 }
 
                 await connection.ExecuteAsync(
-                    "INSERT INTO RS_SCHEMA_VERSION (filename, checksum) VALUES (@Filename, @Checksum)",
+                    "INSERT INTO _migration_log (filename, checksum) VALUES (@Filename, @Checksum)",
                     new { Filename = filename, Checksum = checksum });
 
                 _logger.LogInformation("Migration {Filename} applied successfully.", filename);
@@ -115,37 +126,45 @@ public class MigrationRunner
 
     private static List<string> SplitSqlStatements(string sql)
     {
-        // Split on semicolons but respect delimiters used in stored procedures
+        // Strip block comments /* ... */ (handles commented-out demo data)
+        sql = System.Text.RegularExpressions.Regex.Replace(sql, @"/\*[\s\S]*?\*/", "", System.Text.RegularExpressions.RegexOptions.Compiled);
+
         var statements = new List<string>();
         var current = new StringBuilder();
+        var delimiter = ";";
 
         foreach (var line in sql.Split('\n'))
         {
             var trimmed = line.TrimEnd('\r');
+            var trimmedUpper = trimmed.TrimStart();
 
-            // Skip DELIMITER directives (used for stored procs)
-            if (trimmed.TrimStart().StartsWith("DELIMITER", StringComparison.OrdinalIgnoreCase))
+            // Handle DELIMITER directives
+            if (trimmedUpper.StartsWith("DELIMITER", StringComparison.OrdinalIgnoreCase))
+            {
+                var newDelim = trimmedUpper["DELIMITER".Length..].Trim();
+                if (!string.IsNullOrEmpty(newDelim))
+                    delimiter = newDelim;
                 continue;
+            }
 
             current.AppendLine(trimmed);
 
-            if (trimmed.TrimEnd().EndsWith(';'))
+            if (trimmed.TrimEnd().EndsWith(delimiter, StringComparison.Ordinal))
             {
-                var statement = current.ToString().Trim().TrimEnd(';');
-                if (!string.IsNullOrWhiteSpace(statement))
-                {
-                    statements.Add(statement);
-                }
+                var stmt = current.ToString().Trim();
+                if (stmt.EndsWith(delimiter, StringComparison.Ordinal))
+                    stmt = stmt[..^delimiter.Length].Trim();
+                if (!string.IsNullOrWhiteSpace(stmt))
+                    statements.Add(stmt);
                 current.Clear();
             }
         }
 
-        // Add any remaining content
-        var remaining = current.ToString().Trim().TrimEnd(';');
+        var remaining = current.ToString().Trim();
+        if (remaining.EndsWith(";", StringComparison.Ordinal))
+            remaining = remaining[..^1].Trim();
         if (!string.IsNullOrWhiteSpace(remaining))
-        {
             statements.Add(remaining);
-        }
 
         return statements;
     }

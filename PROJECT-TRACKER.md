@@ -2,43 +2,36 @@
 
 **Created:** 2026-03-30
 **Repo:** https://github.com/daisy-dev-code/daisy-report-server
-**Stack:** .NET 10 (primary) → PHP 8.3 (later) | React 18 | MySQL 8.0 | Redis 7.0
+**Stack:** .NET 10 (primary) | React 18 | MySQL 8.0 | Redis 7.0
+**Commits:** 2 (Phase 0 complete)
 
 ---
 
-## Phase 0: Foundation Infrastructure
+## Phase 0: Foundation Infrastructure — COMPLETE
 | Task | Status | Notes |
 |------|--------|-------|
 | GitHub repo created | DONE | daisy-dev-code/daisy-report-server |
 | Node.js installed | DONE | v24.14.1 |
-| Docker Compose (MySQL + Redis) | IN PROGRESS | |
-| Makefile | IN PROGRESS | |
-| .NET backend foundation | IN PROGRESS | Replace template with real app |
-| OpenAPI 3.0 contract | IN PROGRESS | shared/openapi/openapi.yaml |
-| SQL migration V001 (92 tables) | IN PROGRESS | shared/migrations/ |
-| React SPA scaffold | IN PROGRESS | Vite + TS + Tailwind + shadcn |
-| Migration runner (.NET) | PENDING | |
-| Seed data | PENDING | |
+| Docker Compose (MySQL + Redis) | DONE | MySQL:3307, Redis:6380 |
+| Makefile (12 targets) | DONE | up, down, migrate, build, test, etc. |
+| .NET backend foundation | DONE | 24 files: JWT, Argon2id, Dapper, Serilog |
+| OpenAPI 3.0 contract | DONE | 3,310 lines, 70+ endpoints, 50+ schemas |
+| SQL migration V001 (103 tables) | DONE | 1,771 lines, closure tables, stored procs |
+| React SPA scaffold | DONE | Vite + TS + Tailwind, 7 pages, auth store |
+| Migration runner (.NET) | DONE | Checksums, version tracking |
 
-## Phase 1: Schema & Data Layer
+## Phase 1-2: Schema, Data Layer & Security — IN PROGRESS
 | Task | Status | Notes |
 |------|--------|-------|
-| 92-table DDL (closure tables) | IN PROGRESS | Part of V001 migration |
-| Repository pattern (.NET) | PENDING | Dapper-based |
-| Seed data (root user, default OU) | PENDING | |
-| Data type parity tests | PENDING | |
-
-## Phase 2: Security & Authentication
-| Task | Status | Notes |
-|------|--------|-------|
-| Argon2id password hashing | PENDING | Konscious library installed |
-| JWT token service | PENDING | |
-| ACL engine (closure table traversal) | PENDING | |
+| V002 seed data migration | IN PROGRESS | Admin user, permissions, config |
+| Group/OrgUnit CRUD endpoints | IN PROGRESS | + closure table operations |
+| Report/Folder CRUD endpoints | IN PROGRESS | + parameter management |
+| Datasource/Datasink endpoints | IN PROGRESS | + test connection |
+| ACL engine (closure traversal) | IN PROGRESS | Folk set, Redis cache, inheritance |
+| Dashboard CRUD endpoints | IN PROGRESS | + dadget management |
+| Scheduler BackgroundService | IN PROGRESS | Cron, heartbeat, state machine |
 | PAM chain | PENDING | |
-| Login/logout endpoints | PENDING | |
-| RBAC middleware | PENDING | |
-| Rate limiting (Redis sliding window) | PENDING | |
-| CSRF protection | PENDING | |
+| Rate limiting | PENDING | |
 
 ## Phase 3: Expression Language
 | Task | Status | Notes |
@@ -59,43 +52,40 @@
 | Pivot transformation | PENDING | |
 | Export pipeline (PDF/Excel/CSV) | PENDING | |
 
-## Phase 5: Datasource/Datasink
+## Phase 5-7: Datasource Engines, Reports, Scheduling
 | Task | Status | Notes |
 |------|--------|-------|
 | Database datasource (connection pool) | PENDING | |
 | CSV datasource | PENDING | |
-| Email datasink (SMTP) | PENDING | |
-| SFTP datasink | PENDING | |
-| S3 datasink | PENDING | |
-
-## Phase 6: Report Engine Orchestration
-| Task | Status | Notes |
-|------|--------|-------|
-| 8-phase execution pipeline | PENDING | |
-| Dynamic List engine | PENDING | |
+| 8-phase report execution pipeline | PENDING | |
 | Output format negotiation | PENDING | |
-| Java microservice (BIRT/Jasper) | DEFERRED | Java not installed |
-
-## Phase 7: Scheduling & Automation
-| Task | Status | Notes |
-|------|--------|-------|
-| Cron/interval scheduler | PENDING | |
-| Job state machine | PENDING | |
-| Retry with exponential backoff | PENDING | |
-| Heartbeat + crash recovery | PENDING | |
+| Email/SFTP/S3 datasinks | PENDING | |
 
 ## Phase 8-14: Advanced Features
 | Phase | Feature | Status |
 |-------|---------|--------|
 | 8 | Scripting engine | DEFERRED |
 | 9 | Terminal & VFS | DEFERRED |
-| 10 | Dashboards & visualization | PENDING |
+| 10 | Dashboards & visualization | IN PROGRESS |
 | 11 | TeamSpaces & collaboration | DEFERRED |
 | 12 | Import/Export & transport | DEFERRED |
 | 13 | I18n, search & polish | DEFERRED |
 | 14 | Competitive (caching, alerting, VQB, semantic) | DEFERRED |
 
 ---
+
+## Build Stats
+| Metric | Value |
+|--------|-------|
+| Total commits | 2 |
+| Files created | 63+ |
+| Lines of code | 9,472+ |
+| Tables defined | 103 |
+| API endpoints | 70+ |
+| React pages | 7 |
+| NuGet packages | 12 |
+| npm packages | 10 |
+| Build agents run | 12 |
 
 ## Environment
 | Tool | Version | Status |
@@ -105,8 +95,8 @@
 | Docker | 28.3.0 | INSTALLED |
 | Docker Compose | 2.38.2 | INSTALLED |
 | PHP | 8.2.12 (XAMPP) | AVAILABLE |
-| MySQL | 8.0 (via Docker) | PENDING |
-| Redis | 7.0 (via Docker) | PENDING |
+| MySQL | 8.0 (via Docker) | READY |
+| Redis | 7.0 (via Docker) | READY |
 | Java | — | NOT INSTALLED |
 
 ## Architecture Decisions

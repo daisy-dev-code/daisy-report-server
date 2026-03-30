@@ -35,6 +35,17 @@ try
     builder.Services.AddScoped<IUserRepository, UserRepository>();
     builder.Services.AddScoped<IAclRepository, AclRepository>();
     builder.Services.AddScoped<IAuditRepository, AuditRepository>();
+    builder.Services.AddScoped<IGroupRepository, GroupRepository>();
+    builder.Services.AddScoped<IOrgUnitRepository, OrgUnitRepository>();
+    builder.Services.AddScoped<IReportRepository, ReportRepository>();
+    builder.Services.AddScoped<IReportFolderRepository, ReportFolderRepository>();
+    builder.Services.AddScoped<IDatasourceRepository, DatasourceRepository>();
+    builder.Services.AddScoped<IDatasinkRepository, DatasinkRepository>();
+    builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
+    builder.Services.AddScoped<ISchedulerRepository, SchedulerRepository>();
+
+    // Background Services
+    builder.Services.AddHostedService<SchedulerService>();
 
     // JWT Authentication
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -88,6 +99,15 @@ try
     app.MapHealthEndpoints();
     app.MapAuthEndpoints();
     app.MapUserEndpoints();
+    app.MapGroupEndpoints();
+    app.MapOrgUnitEndpoints();
+    app.MapReportEndpoints();
+    app.MapReportFolderEndpoints();
+    app.MapDatasourceEndpoints();
+    app.MapDatasinkEndpoints();
+    app.MapPermissionEndpoints();
+    app.MapDashboardEndpoints();
+    app.MapSchedulerEndpoints();
 
     app.Run();
 }

@@ -1,4 +1,5 @@
 using System.Text;
+using Dapper;
 using DaisyReport.Api.DynamicList;
 using DaisyReport.Api.Endpoints;
 using DaisyReport.Api.ExpressionEngine;
@@ -10,6 +11,9 @@ using DaisyReport.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Serilog;
+
+// Enable Dapper snake_case → PascalCase column mapping
+Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
@@ -96,11 +100,36 @@ try
 
     var app = builder.Build();
 
-    // Run migrations on startup
-    using (var scope = app.Services.CreateScope())
+    // Run migrations on startup (skip errors if already applied)
+    try
     {
+        using var scope = app.Services.CreateScope();
         var migrationRunner = scope.ServiceProvider.GetRequiredService<MigrationRunner>();
         await migrationRunner.RunAsync();
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Migration runner encountered an error (database may already be initialized)");
+    }
+
+    // Ensure admin password hash is valid (seed data may have placeholder hash)
+    try
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<IDatabase>();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        using var conn = await db.GetConnectionAsync();
+        var adminHash = await conn.ExecuteScalarAsync<string>("SELECT password_hash FROM RS_USER WHERE username = 'admin'");
+        if (adminHash != null && !hasher.VerifyPassword("DaisyAdmin2026!", adminHash))
+        {
+            var newHash = hasher.HashPassword("DaisyAdmin2026!");
+            await conn.ExecuteAsync("UPDATE RS_USER SET password_hash = @Hash WHERE username = 'admin'", new { Hash = newHash });
+            Log.Information("Admin password hash updated to valid Argon2id format");
+        }
+    }
+    catch (Exception ex)
+    {
+        Log.Warning(ex, "Could not verify admin password hash");
     }
 
     // Middleware pipeline

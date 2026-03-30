@@ -17,16 +17,16 @@ public class AuditRepository : IAuditRepository
     {
         using var conn = await _database.GetConnectionAsync();
         await conn.ExecuteAsync(
-            @"INSERT INTO RS_AUDIT_LOG (user_id, action, entity_type, entity_id, details, ip_address, created_at)
-              VALUES (@UserId, @Action, @EntityType, @EntityId, @Details, @IpAddress, @CreatedAt)",
+            @"INSERT INTO RS_AUDIT_LOG (username, action, entity_type, entity_id, details, remote_addr, created_at)
+              VALUES (@Username, @Action, @EntityType, @EntityId, CASE WHEN @Details IS NOT NULL THEN JSON_OBJECT('message', @Details) ELSE NULL END, @RemoteAddr, @CreatedAt)",
             new
             {
-                UserId = userId,
+                Username = userId?.ToString(),
                 Action = action,
                 EntityType = entityType,
                 EntityId = entityId,
                 Details = details,
-                IpAddress = ipAddress,
+                RemoteAddr = ipAddress,
                 CreatedAt = DateTime.UtcNow
             });
     }

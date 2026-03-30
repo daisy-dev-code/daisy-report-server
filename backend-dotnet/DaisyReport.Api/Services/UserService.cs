@@ -54,7 +54,6 @@ public class UserService : IUserService
         var token = _jwtService.GenerateToken(user);
 
         // Update last login
-        user.LastLoginAt = DateTime.UtcNow;
         await _userRepo.UpdateLastLoginAsync(user.Id);
 
         // Cache the session

@@ -31,15 +31,8 @@ public class JwtService : IJwtService
             new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(JwtRegisteredClaimNames.UniqueName, user.Username),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-            new("role", user.Role),
             new("display_name", user.DisplayName),
         };
-
-        if (user.GroupId.HasValue)
-            claims.Add(new Claim("group_id", user.GroupId.Value.ToString()));
-
-        if (user.OrgUnitId.HasValue)
-            claims.Add(new Claim("org_unit_id", user.OrgUnitId.Value.ToString()));
 
         var credentials = new SigningCredentials(_signingKey, SecurityAlgorithms.HmacSha256);
 

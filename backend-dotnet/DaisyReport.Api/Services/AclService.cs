@@ -252,7 +252,7 @@ public class AclService : IAclService
         var user = await _userRepo.GetByIdAsync(userId);
         if (user == null) return [];
 
-        var rolePerms = await _aclRepo.GetRolePermissionsAsync(user.Role);
+        var rolePerms = await _aclRepo.GetRolePermissionsAsync("user");
         var userPerms = await _aclRepo.GetUserPermissionsAsync(userId);
 
         var merged = new HashSet<string>(rolePerms);

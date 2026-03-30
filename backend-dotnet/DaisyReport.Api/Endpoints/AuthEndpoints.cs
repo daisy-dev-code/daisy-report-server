@@ -41,14 +41,11 @@ public static class AuthEndpoints
             token,
             user = new
             {
-                user.Id,
-                user.Username,
-                user.Email,
-                user.DisplayName,
-                user.Role,
-                user.GroupId,
-                user.OrgUnitId,
-                user.MustChangePassword
+                id = user.Id,
+                username = user.Username,
+                email = user.Email ?? "",
+                firstname = user.Firstname ?? "",
+                lastname = user.Lastname ?? ""
             }
         });
     }
@@ -76,15 +73,11 @@ public static class AuthEndpoints
         {
             user = new
             {
-                user.Id,
-                user.Username,
-                user.Email,
-                user.DisplayName,
-                user.Role,
-                user.GroupId,
-                user.OrgUnitId,
-                user.MustChangePassword,
-                user.LastLoginAt
+                id = user.Id,
+                username = user.Username,
+                email = user.Email ?? "",
+                firstname = user.Firstname ?? "",
+                lastname = user.Lastname ?? ""
             }
         });
     }

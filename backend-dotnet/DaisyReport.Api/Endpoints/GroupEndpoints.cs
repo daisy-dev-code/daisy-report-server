@@ -132,8 +132,7 @@ public static class GroupEndpoints
                 m.Username,
                 m.Email,
                 m.DisplayName,
-                m.Role,
-                m.IsActive,
+                m.Enabled,
                 m.CreatedAt
             })
         });

@@ -5,6 +5,9 @@ using DaisyReport.Api.Endpoints;
 using DaisyReport.Api.ExpressionEngine;
 using DaisyReport.Api.Infrastructure;
 using DaisyReport.Api.Middleware;
+using DaisyReport.Api.PowerBi;
+using DaisyReport.Api.PowerBi.Endpoints;
+using DaisyReport.Api.PowerBi.Services;
 using DaisyReport.Api.ReportEngine;
 using DaisyReport.Api.Repositories;
 using DaisyReport.Api.Services;
@@ -63,6 +66,12 @@ try
     // Dynamic List Engine
     builder.Services.AddScoped<IDynamicListEngine, DynamicListEngine>();
     builder.Services.AddScoped<IExportService, ExportService>();
+
+    // Power BI Integration
+    builder.Services.AddHttpClient<IPowerBiApiClient, PowerBiApiClient>();
+    builder.Services.AddSingleton<IPowerBiAuthService, PowerBiAuthService>();
+    builder.Services.AddScoped<IPowerBiSyncService, PowerBiSyncService>();
+    builder.Services.AddScoped<IPowerBiRepository, PowerBiRepository>();
 
     // Background Services
     builder.Services.AddHostedService<SchedulerService>();
@@ -159,6 +168,7 @@ try
     app.MapConfigEndpoints();
     app.MapNotificationEndpoints();
     app.MapConstantEndpoints();
+    app.MapPowerBiEndpoints();
 
     app.Run();
 }

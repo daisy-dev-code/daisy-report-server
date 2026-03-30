@@ -7,6 +7,8 @@ import DashboardPage from './pages/DashboardPage';
 import ReportsPage from './pages/ReportsPage';
 import DatasourcesPage from './pages/DatasourcesPage';
 import SchedulerPage from './pages/SchedulerPage';
+import PowerBiPage from './pages/PowerBiPage';
+import PowerBiEmbedPage from './pages/PowerBiEmbedPage';
 import UsersPage from './pages/UsersPage';
 import SettingsPage from './pages/SettingsPage';
 
@@ -34,6 +36,8 @@ export default function App() {
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/datasources" element={<DatasourcesPage />} />
             <Route path="/scheduler" element={<SchedulerPage />} />
+            <Route path="/powerbi" element={<PowerBiPage />} />
+            <Route path="/powerbi/embed/:workspaceId/:reportId" element={<PowerBiEmbedPage />} />
             <Route path="/users" element={<UsersPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

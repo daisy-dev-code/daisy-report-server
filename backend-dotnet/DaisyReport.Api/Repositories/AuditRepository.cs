@@ -31,33 +31,66 @@ public class AuditRepository : IAuditRepository
             });
     }
 
-    public async Task<(List<AuditLog> Logs, int Total)> ListAsync(int page, int pageSize, long? userId, string? action)
+    public async Task<(List<AuditLog> Logs, int Total)> ListAsync(int page, int pageSize, long? userId, string? action,
+        string? entityType = null, string? username = null, DateTime? dateFrom = null, DateTime? dateTo = null)
     {
         using var conn = await _database.GetConnectionAsync();
 
         var conditions = new List<string>();
-        if (userId.HasValue) conditions.Add("user_id = @UserId");
-        if (!string.IsNullOrWhiteSpace(action)) conditions.Add("action = @Action");
+        var useJoin = !string.IsNullOrWhiteSpace(username);
+
+        if (userId.HasValue) conditions.Add("a.user_id = @UserId");
+        if (!string.IsNullOrWhiteSpace(action)) conditions.Add("a.action = @Action");
+        if (!string.IsNullOrWhiteSpace(entityType)) conditions.Add("a.entity_type = @EntityType");
+        if (dateFrom.HasValue) conditions.Add("a.created_at >= @DateFrom");
+        if (dateTo.HasValue) conditions.Add("a.created_at <= @DateTo");
+        if (useJoin) conditions.Add("u.username LIKE @Username");
 
         var whereClause = conditions.Count > 0
             ? "WHERE " + string.Join(" AND ", conditions)
             : "";
 
+        var joinClause = useJoin
+            ? "LEFT JOIN RS_USERS u ON a.user_id = u.id"
+            : "";
+
         var offset = (page - 1) * pageSize;
+        var parameters = new
+        {
+            UserId = userId,
+            Action = action,
+            EntityType = entityType,
+            DateFrom = dateFrom,
+            DateTo = dateTo,
+            Username = useJoin ? $"%{username}%" : null,
+            PageSize = pageSize,
+            Offset = offset
+        };
 
         var total = await conn.ExecuteScalarAsync<int>(
-            $"SELECT COUNT(*) FROM RS_AUDIT_LOG {whereClause}",
-            new { UserId = userId, Action = action });
+            $"SELECT COUNT(*) FROM RS_AUDIT_LOG a {joinClause} {whereClause}",
+            parameters);
 
         var logs = (await conn.QueryAsync<AuditLog>(
-            $@"SELECT id AS Id, user_id AS UserId, action AS Action, entity_type AS EntityType,
-                      entity_id AS EntityId, details AS Details, ip_address AS IpAddress,
-                      created_at AS CreatedAt
-               FROM RS_AUDIT_LOG {whereClause}
-               ORDER BY created_at DESC
+            $@"SELECT a.id AS Id, a.user_id AS UserId, a.action AS Action, a.entity_type AS EntityType,
+                      a.entity_id AS EntityId, a.details AS Details, a.ip_address AS IpAddress,
+                      a.created_at AS CreatedAt
+               FROM RS_AUDIT_LOG a {joinClause} {whereClause}
+               ORDER BY a.created_at DESC
                LIMIT @PageSize OFFSET @Offset",
-            new { UserId = userId, Action = action, PageSize = pageSize, Offset = offset })).ToList();
+            parameters)).ToList();
 
         return (logs, total);
+    }
+
+    public async Task<AuditLog?> GetByIdAsync(long id)
+    {
+        using var conn = await _database.GetConnectionAsync();
+        return await conn.QuerySingleOrDefaultAsync<AuditLog>(
+            @"SELECT id AS Id, user_id AS UserId, action AS Action, entity_type AS EntityType,
+                     entity_id AS EntityId, details AS Details, ip_address AS IpAddress,
+                     created_at AS CreatedAt
+              FROM RS_AUDIT_LOG WHERE id = @Id",
+            new { Id = id });
     }
 }

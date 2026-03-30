@@ -34,6 +34,7 @@ try
     builder.Services.AddSingleton<IExpressionService, ExpressionService>();
     builder.Services.AddScoped<IUserService, UserService>();
     builder.Services.AddScoped<IAclService, AclService>();
+    builder.Services.AddScoped<ISearchService, SearchService>();
 
     // Report Engine
     builder.Services.AddScoped<IReportExecutionPipeline, ReportExecutionPipeline>();
@@ -52,6 +53,8 @@ try
     builder.Services.AddScoped<IDatasinkRepository, DatasinkRepository>();
     builder.Services.AddScoped<IDashboardRepository, DashboardRepository>();
     builder.Services.AddScoped<ISchedulerRepository, SchedulerRepository>();
+    builder.Services.AddScoped<IConfigRepository, ConfigRepository>();
+    builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
     // Dynamic List Engine
     builder.Services.AddScoped<IDynamicListEngine, DynamicListEngine>();
@@ -122,6 +125,11 @@ try
     app.MapDashboardEndpoints();
     app.MapSchedulerEndpoints();
     app.MapExportEndpoints();
+    app.MapSearchEndpoints();
+    app.MapAuditEndpoints();
+    app.MapConfigEndpoints();
+    app.MapNotificationEndpoints();
+    app.MapConstantEndpoints();
 
     app.Run();
 }

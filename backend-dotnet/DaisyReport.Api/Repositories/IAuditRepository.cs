@@ -5,5 +5,7 @@ namespace DaisyReport.Api.Repositories;
 public interface IAuditRepository
 {
     Task LogAsync(long? userId, string action, string? entityType, long? entityId, string? details, string? ipAddress);
-    Task<(List<AuditLog> Logs, int Total)> ListAsync(int page, int pageSize, long? userId, string? action);
+    Task<(List<AuditLog> Logs, int Total)> ListAsync(int page, int pageSize, long? userId, string? action,
+        string? entityType = null, string? username = null, DateTime? dateFrom = null, DateTime? dateTo = null);
+    Task<AuditLog?> GetByIdAsync(long id);
 }

@@ -1,0 +1,3310 @@
+openapi: "3.0.3"
+
+info:
+  title: DaisyReport API
+  version: 1.0.0
+  description: DaisyReport BI Platform REST API
+  contact:
+    name: Daisy Business Solutions
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+  - url: https://reports.daisybusiness.com
+    description: Production
+
+tags:
+  - name: Auth
+    description: Authentication and session management
+  - name: Users
+    description: User management
+  - name: Groups
+    description: Group management
+  - name: OrgUnits
+    description: Organizational unit management
+  - name: Reports
+    description: Report management and execution
+  - name: ReportFolders
+    description: Report folder hierarchy
+  - name: Datasources
+    description: Data source connections
+  - name: Datasinks
+    description: Data sink / output destinations
+  - name: Dashboards
+    description: Dashboard and dadget management
+  - name: Scheduler
+    description: Job scheduling and execution
+  - name: Permissions
+    description: ACL and permission management
+  - name: System
+    description: Health, info, and system configuration
+
+security:
+  - BearerAuth: []
+
+components:
+  # ---------------------------------------------------------------------------
+  # Security Schemes
+  # ---------------------------------------------------------------------------
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token returned from /api/auth/login
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key generated via /api/users/{id}/api-keys
+    CookieAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Session cookie set after login
+
+  # ---------------------------------------------------------------------------
+  # Reusable Parameters
+  # ---------------------------------------------------------------------------
+  parameters:
+    PathId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+      description: Resource ID
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+      description: Page number (1-based)
+    PageSizeParam:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        default: 25
+        minimum: 1
+        maximum: 200
+      description: Items per page
+    SearchParam:
+      name: search
+      in: query
+      schema:
+        type: string
+      description: Free-text search filter
+    SortByParam:
+      name: sortBy
+      in: query
+      schema:
+        type: string
+      description: Field name to sort by
+    SortDirParam:
+      name: sortDir
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+        default: asc
+      description: Sort direction
+
+  # ---------------------------------------------------------------------------
+  # Schemas
+  # ---------------------------------------------------------------------------
+  schemas:
+    # ---- Pagination wrapper ----
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        pageSize:
+          type: integer
+          example: 25
+        totalItems:
+          type: integer
+          example: 142
+        totalPages:
+          type: integer
+          example: 6
+      required: [page, pageSize, totalItems, totalPages]
+
+    # ---- Standard error ----
+    Error:
+      type: object
+      properties:
+        status:
+          type: integer
+          example: 400
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: "Field 'email' is required"
+      required: [status, code, message]
+
+    # ---- Auth ----
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username:
+          type: string
+          example: admin
+        password:
+          type: string
+          format: password
+          example: "••••••••"
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT access token
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        refreshToken:
+          type: string
+          description: Refresh token for obtaining new access tokens
+          example: dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...
+        expiresIn:
+          type: integer
+          description: Token lifetime in seconds
+          example: 3600
+        user:
+          $ref: "#/components/schemas/User"
+      required: [token, refreshToken, expiresIn, user]
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          example: dGhpcyBpcyBhIHJlZnJlc2ggdG9rZW4...
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+          minLength: 8
+
+    # ---- User ----
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        username:
+          type: string
+          example: admin
+        email:
+          type: string
+          format: email
+          example: admin@daisy.co.za
+        displayName:
+          type: string
+          example: Admin User
+        role:
+          type: string
+          enum: [admin, editor, viewer]
+          example: admin
+        orgUnitId:
+          type: integer
+          format: int64
+          nullable: true
+          example: 3
+        enabled:
+          type: boolean
+          example: true
+        lastLoginAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, username, email, displayName, role, enabled, createdAt, updatedAt]
+
+    UserCreate:
+      type: object
+      required: [username, email, displayName, role, password]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 64
+          example: jdoe
+        email:
+          type: string
+          format: email
+          example: jdoe@daisy.co.za
+        displayName:
+          type: string
+          example: Jane Doe
+        role:
+          type: string
+          enum: [admin, editor, viewer]
+          example: editor
+        password:
+          type: string
+          format: password
+          minLength: 8
+        orgUnitId:
+          type: integer
+          format: int64
+          nullable: true
+        enabled:
+          type: boolean
+          default: true
+
+    UserUpdate:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [admin, editor, viewer]
+        orgUnitId:
+          type: integer
+          format: int64
+          nullable: true
+        enabled:
+          type: boolean
+
+    UserList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    # ---- API Key ----
+    ApiKey:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 10
+        name:
+          type: string
+          example: CI Pipeline Key
+        prefix:
+          type: string
+          description: First 8 chars of the key for identification
+          example: drk_ab12
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, prefix, createdAt]
+
+    ApiKeyCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          example: CI Pipeline Key
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional expiry; null means never expires
+
+    ApiKeyCreated:
+      type: object
+      description: Returned only once on creation; the full key is never shown again
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        key:
+          type: string
+          description: Full API key (shown only once)
+          example: drk_ab12cd34ef56gh78ij90kl12mn34op
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, key, createdAt]
+
+    ResetPasswordResponse:
+      type: object
+      properties:
+        otp:
+          type: string
+          description: One-time password the user must change on next login
+          example: Tmp$8xYz
+        expiresAt:
+          type: string
+          format: date-time
+      required: [otp, expiresAt]
+
+    # ---- Group ----
+    Group:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 5
+        name:
+          type: string
+          example: Finance Team
+        description:
+          type: string
+          example: All finance department users
+        memberCount:
+          type: integer
+          example: 12
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, createdAt, updatedAt]
+
+    GroupCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        description:
+          type: string
+          maxLength: 500
+
+    GroupUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        description:
+          type: string
+          maxLength: 500
+
+    GroupMember:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+        displayName:
+          type: string
+        addedAt:
+          type: string
+          format: date-time
+      required: [userId, username, displayName, addedAt]
+
+    GroupMemberAdd:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: integer
+          format: int64
+
+    # ---- Organizational Unit ----
+    OrgUnit:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 3
+        name:
+          type: string
+          example: Johannesburg Branch
+        parentId:
+          type: integer
+          format: int64
+          nullable: true
+          example: 1
+        path:
+          type: string
+          description: Materialised path for quick tree lookups
+          example: /1/3
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/OrgUnit"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, parentId, createdAt, updatedAt]
+
+    OrgUnitCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        parentId:
+          type: integer
+          format: int64
+          nullable: true
+
+    OrgUnitUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        parentId:
+          type: integer
+          format: int64
+          nullable: true
+
+    # ---- Report ----
+    Report:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 42
+        name:
+          type: string
+          example: Monthly Sales Summary
+        description:
+          type: string
+          example: Aggregated sales totals per branch per month
+        folderId:
+          type: integer
+          format: int64
+          nullable: true
+          example: 7
+        datasourceId:
+          type: integer
+          format: int64
+          example: 2
+        query:
+          type: string
+          description: SQL query or stored-procedure call
+          example: "SELECT branch, SUM(amount) AS total FROM sales WHERE month = :month GROUP BY branch"
+        parameters:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportParameter"
+        outputFormat:
+          type: string
+          enum: [json, csv, xlsx, pdf]
+          default: json
+        createdBy:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, datasourceId, query, outputFormat, createdBy, createdAt, updatedAt]
+
+    ReportCreate:
+      type: object
+      required: [name, datasourceId, query]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        folderId:
+          type: integer
+          format: int64
+          nullable: true
+        datasourceId:
+          type: integer
+          format: int64
+        query:
+          type: string
+        parameters:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportParameterDef"
+        outputFormat:
+          type: string
+          enum: [json, csv, xlsx, pdf]
+          default: json
+
+    ReportUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+        folderId:
+          type: integer
+          format: int64
+          nullable: true
+        datasourceId:
+          type: integer
+          format: int64
+        query:
+          type: string
+        parameters:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportParameterDef"
+        outputFormat:
+          type: string
+          enum: [json, csv, xlsx, pdf]
+
+    ReportParameter:
+      type: object
+      properties:
+        name:
+          type: string
+          example: month
+        label:
+          type: string
+          example: Month
+        type:
+          type: string
+          enum: [string, integer, float, date, boolean, enum]
+          example: date
+        required:
+          type: boolean
+          example: true
+        defaultValue:
+          type: string
+          nullable: true
+          example: "2026-01-01"
+        enumValues:
+          type: array
+          items:
+            type: string
+          nullable: true
+      required: [name, label, type, required]
+
+    ReportParameterDef:
+      type: object
+      required: [name, label, type]
+      properties:
+        name:
+          type: string
+        label:
+          type: string
+        type:
+          type: string
+          enum: [string, integer, float, date, boolean, enum]
+        required:
+          type: boolean
+          default: false
+        defaultValue:
+          type: string
+          nullable: true
+        enumValues:
+          type: array
+          items:
+            type: string
+          nullable: true
+
+    ReportExecuteRequest:
+      type: object
+      properties:
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Key-value map of parameter names to values
+          example:
+            month: "2026-01"
+        outputFormat:
+          type: string
+          enum: [json, csv, xlsx, pdf]
+          description: Override the report's default output format
+
+    ReportExecuteResponseJson:
+      type: object
+      properties:
+        columns:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+        data:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        rowCount:
+          type: integer
+          example: 150
+        executedAt:
+          type: string
+          format: date-time
+        durationMs:
+          type: integer
+          example: 342
+
+    ReportList:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Report"
+        pagination:
+          $ref: "#/components/schemas/Pagination"
+
+    # ---- Report Folder ----
+    ReportFolder:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 7
+        name:
+          type: string
+          example: Finance Reports
+        parentId:
+          type: integer
+          format: int64
+          nullable: true
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReportFolder"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, parentId, createdAt, updatedAt]
+
+    ReportFolderCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        parentId:
+          type: integer
+          format: int64
+          nullable: true
+
+    ReportFolderUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        parentId:
+          type: integer
+          format: int64
+          nullable: true
+
+    # ---- Datasource ----
+    Datasource:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 2
+        name:
+          type: string
+          example: Daisy Production DB
+        type:
+          type: string
+          enum: [mysql, postgres, mssql, sqlite, oracle, odbc]
+          example: mysql
+        host:
+          type: string
+          example: db.daisy.local
+        port:
+          type: integer
+          example: 3306
+        database:
+          type: string
+          example: daisy_prod
+        username:
+          type: string
+          example: report_reader
+        useSsl:
+          type: boolean
+          example: true
+        maxPoolSize:
+          type: integer
+          example: 10
+        connectionTimeoutMs:
+          type: integer
+          example: 5000
+        status:
+          type: string
+          enum: [untested, ok, error]
+          example: ok
+        lastTestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, type, host, port, database, username, status, createdAt, updatedAt]
+
+    DatasourceCreate:
+      type: object
+      required: [name, type, host, port, database, username, password]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        type:
+          type: string
+          enum: [mysql, postgres, mssql, sqlite, oracle, odbc]
+        host:
+          type: string
+        port:
+          type: integer
+        database:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+        useSsl:
+          type: boolean
+          default: false
+        maxPoolSize:
+          type: integer
+          default: 10
+          minimum: 1
+          maximum: 100
+        connectionTimeoutMs:
+          type: integer
+          default: 5000
+
+    DatasourceUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        host:
+          type: string
+        port:
+          type: integer
+        database:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+          description: Omit to keep existing password
+        useSsl:
+          type: boolean
+        maxPoolSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        connectionTimeoutMs:
+          type: integer
+
+    DatasourceTestResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        latencyMs:
+          type: integer
+          example: 23
+        serverVersion:
+          type: string
+          example: "8.0.35"
+        error:
+          type: string
+          nullable: true
+      required: [success]
+
+    TableInfo:
+      type: object
+      properties:
+        schema:
+          type: string
+          example: public
+        name:
+          type: string
+          example: sales
+        type:
+          type: string
+          enum: [table, view]
+          example: table
+        rowCountEstimate:
+          type: integer
+          format: int64
+          nullable: true
+      required: [name, type]
+
+    ColumnInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          example: amount
+        dataType:
+          type: string
+          example: decimal(10,2)
+        nullable:
+          type: boolean
+          example: false
+        isPrimaryKey:
+          type: boolean
+          example: false
+        defaultValue:
+          type: string
+          nullable: true
+      required: [name, dataType, nullable]
+
+    # ---- Datasink ----
+    Datasink:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 4
+        name:
+          type: string
+          example: Finance SFTP Drop
+        type:
+          type: string
+          enum: [email, sftp, s3, azure_blob, webhook, local_fs]
+          example: sftp
+        config:
+          type: object
+          additionalProperties: true
+          description: Type-specific configuration (host, path, bucket, etc.)
+          example:
+            host: sftp.daisy.co.za
+            port: 22
+            path: /reports/finance
+            username: uploader
+        status:
+          type: string
+          enum: [untested, ok, error]
+          example: ok
+        lastTestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, type, config, status, createdAt, updatedAt]
+
+    DatasinkCreate:
+      type: object
+      required: [name, type, config]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        type:
+          type: string
+          enum: [email, sftp, s3, azure_blob, webhook, local_fs]
+        config:
+          type: object
+          additionalProperties: true
+
+    DatasinkUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [email, sftp, s3, azure_blob, webhook, local_fs]
+        config:
+          type: object
+          additionalProperties: true
+
+    DatasinkSendRequest:
+      type: object
+      required: [reportId]
+      properties:
+        reportId:
+          type: integer
+          format: int64
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Report execution parameters
+        outputFormat:
+          type: string
+          enum: [csv, xlsx, pdf, json]
+
+    DatasinkSendResponse:
+      type: object
+      properties:
+        jobId:
+          type: string
+          format: uuid
+          description: Async job ID to poll for completion
+        status:
+          type: string
+          enum: [queued]
+          example: queued
+      required: [jobId, status]
+
+    # ---- Dashboard / Dadget ----
+    Dashboard:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 10
+        name:
+          type: string
+          example: Executive Overview
+        description:
+          type: string
+          nullable: true
+        layout:
+          type: object
+          additionalProperties: true
+          description: Grid layout configuration (columns, breakpoints)
+        dadgets:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dadget"
+        createdBy:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, createdBy, createdAt, updatedAt]
+
+    DashboardCreate:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        layout:
+          type: object
+          additionalProperties: true
+
+    DashboardUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        layout:
+          type: object
+          additionalProperties: true
+
+    Dadget:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 55
+        dashboardId:
+          type: integer
+          format: int64
+        title:
+          type: string
+          example: Sales by Region
+        type:
+          type: string
+          enum: [chart_bar, chart_line, chart_pie, chart_doughnut, table, stat_card, map, custom]
+          example: chart_bar
+        reportId:
+          type: integer
+          format: int64
+          description: The report whose data feeds this dadget
+        config:
+          type: object
+          additionalProperties: true
+          description: Dadget-specific rendering configuration
+          example:
+            xAxis: region
+            yAxis: total
+            colorScheme: daisy
+        position:
+          type: object
+          properties:
+            x:
+              type: integer
+            "y":
+              type: integer
+            w:
+              type: integer
+            h:
+              type: integer
+          required: [x, "y", w, h]
+        refreshIntervalSec:
+          type: integer
+          nullable: true
+          example: 300
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, dashboardId, title, type, reportId, position, createdAt, updatedAt]
+
+    DadgetCreate:
+      type: object
+      required: [title, type, reportId, position]
+      properties:
+        title:
+          type: string
+        type:
+          type: string
+          enum: [chart_bar, chart_line, chart_pie, chart_doughnut, table, stat_card, map, custom]
+        reportId:
+          type: integer
+          format: int64
+        config:
+          type: object
+          additionalProperties: true
+        position:
+          type: object
+          properties:
+            x:
+              type: integer
+            "y":
+              type: integer
+            w:
+              type: integer
+            h:
+              type: integer
+          required: [x, "y", w, h]
+        refreshIntervalSec:
+          type: integer
+          nullable: true
+
+    DadgetUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        type:
+          type: string
+          enum: [chart_bar, chart_line, chart_pie, chart_doughnut, table, stat_card, map, custom]
+        reportId:
+          type: integer
+          format: int64
+        config:
+          type: object
+          additionalProperties: true
+        position:
+          type: object
+          properties:
+            x:
+              type: integer
+            "y":
+              type: integer
+            w:
+              type: integer
+            h:
+              type: integer
+        refreshIntervalSec:
+          type: integer
+          nullable: true
+
+    # ---- Schedule Job ----
+    ScheduleJob:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 20
+        name:
+          type: string
+          example: Nightly Sales Export
+        reportId:
+          type: integer
+          format: int64
+          example: 42
+        datasinkId:
+          type: integer
+          format: int64
+          nullable: true
+          example: 4
+        cronExpression:
+          type: string
+          example: "0 2 * * *"
+        parameters:
+          type: object
+          additionalProperties: true
+          description: Report execution parameters
+        outputFormat:
+          type: string
+          enum: [json, csv, xlsx, pdf]
+          example: xlsx
+        enabled:
+          type: boolean
+          example: true
+        nextRunAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastRunAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastRunStatus:
+          type: string
+          enum: [success, failed, running, never_run]
+          example: success
+        createdBy:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name, reportId, cronExpression, outputFormat, enabled, createdBy, createdAt, updatedAt]
+
+    ScheduleJobCreate:
+      type: object
+      required: [name, reportId, cronExpression]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        reportId:
+          type: integer
+          format: int64
+        datasinkId:
+          type: integer
+          format: int64
+          nullable: true
+        cronExpression:
+          type: string
+          description: Standard 5-field cron expression
+        parameters:
+          type: object
+          additionalProperties: true
+        outputFormat:
+          type: string
+          enum: [json, csv, xlsx, pdf]
+          default: json
+        enabled:
+          type: boolean
+          default: true
+
+    ScheduleJobUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        reportId:
+          type: integer
+          format: int64
+        datasinkId:
+          type: integer
+          format: int64
+          nullable: true
+        cronExpression:
+          type: string
+        parameters:
+          type: object
+          additionalProperties: true
+        outputFormat:
+          type: string
+          enum: [json, csv, xlsx, pdf]
+        enabled:
+          type: boolean
+
+    JobExecution:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        jobId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [queued, running, success, failed]
+          example: success
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        durationMs:
+          type: integer
+          nullable: true
+          example: 12340
+        rowCount:
+          type: integer
+          nullable: true
+        error:
+          type: string
+          nullable: true
+      required: [id, jobId, status, startedAt]
+
+    ManualTriggerResponse:
+      type: object
+      properties:
+        executionId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [queued]
+          example: queued
+      required: [executionId, status]
+
+    # ---- Permissions / ACL ----
+    ACL:
+      type: object
+      properties:
+        entityType:
+          type: string
+          enum: [report, dashboard, folder, datasource, datasink]
+          example: report
+        entityId:
+          type: integer
+          format: int64
+          example: 42
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/ACE"
+
+    ACE:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 100
+        principalType:
+          type: string
+          enum: [user, group]
+          example: group
+        principalId:
+          type: integer
+          format: int64
+          example: 5
+        principalName:
+          type: string
+          example: Finance Team
+        permission:
+          type: string
+          enum: [read, write, execute, admin]
+          example: read
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, principalType, principalId, permission, createdAt]
+
+    ACECreate:
+      type: object
+      required: [principalType, principalId, permission]
+      properties:
+        principalType:
+          type: string
+          enum: [user, group]
+        principalId:
+          type: integer
+          format: int64
+        permission:
+          type: string
+          enum: [read, write, execute, admin]
+
+    PermissionCheckResult:
+      type: object
+      properties:
+        allowed:
+          type: boolean
+          example: true
+        reason:
+          type: string
+          example: "Group 'Finance Team' grants read on report 42"
+      required: [allowed]
+
+    # ---- System ----
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          example: healthy
+        timestamp:
+          type: string
+          format: date-time
+        checks:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [ok, warn, fail]
+              latencyMs:
+                type: integer
+                nullable: true
+              message:
+                type: string
+                nullable: true
+          example:
+            database:
+              status: ok
+              latencyMs: 5
+            redis:
+              status: ok
+              latencyMs: 1
+      required: [status, timestamp]
+
+    SystemInfo:
+      type: object
+      properties:
+        version:
+          type: string
+          example: "1.0.0"
+        environment:
+          type: string
+          example: production
+        uptime:
+          type: integer
+          description: Uptime in seconds
+          example: 86400
+        nodeVersion:
+          type: string
+          example: "20.11.1"
+      required: [version, environment, uptime]
+
+    SystemConfig:
+      type: object
+      additionalProperties: true
+      description: Key-value system settings (admin only)
+      example:
+        sessionTimeoutMin: 60
+        maxConcurrentReports: 10
+        smtpHost: mail.daisy.co.za
+        smtpPort: 587
+
+  # ---------------------------------------------------------------------------
+  # Reusable Responses
+  # ---------------------------------------------------------------------------
+  responses:
+    BadRequest:
+      description: Bad request — validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            status: 400
+            code: VALIDATION_ERROR
+            message: "Field 'email' is required"
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            status: 401
+            code: UNAUTHORIZED
+            message: "Invalid or expired token"
+    Forbidden:
+      description: Insufficient permissions
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            status: 403
+            code: FORBIDDEN
+            message: "You do not have access to this resource"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            status: 404
+            code: NOT_FOUND
+            message: "Resource not found"
+    Conflict:
+      description: Conflict — duplicate or state violation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            status: 409
+            code: CONFLICT
+            message: "A resource with that name already exists"
+    UnprocessableEntity:
+      description: Semantic validation error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            status: 422
+            code: UNPROCESSABLE_ENTITY
+            message: "Cron expression is invalid"
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            status: 429
+            code: RATE_LIMITED
+            message: "Too many requests — retry after 60 seconds"
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+    InternalServerError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            status: 500
+            code: INTERNAL_ERROR
+            message: "An unexpected error occurred"
+
+# =============================================================================
+# Paths
+# =============================================================================
+paths:
+
+  # ---------------------------------------------------------------------------
+  # Auth
+  # ---------------------------------------------------------------------------
+  /api/auth/login:
+    post:
+      operationId: login
+      tags: [Auth]
+      summary: Authenticate with username and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /api/auth/logout:
+    post:
+      operationId: logout
+      tags: [Auth]
+      summary: Invalidate the current session and refresh token
+      responses:
+        "204":
+          description: Logged out successfully
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [Auth]
+      summary: Refresh JWT access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/session:
+    get:
+      operationId: getSession
+      tags: [Auth]
+      summary: Get current authenticated user info
+      responses:
+        "200":
+          description: Current user info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [Auth]
+      summary: Change the current user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "204":
+          description: Password changed successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  # ---------------------------------------------------------------------------
+  # Users
+  # ---------------------------------------------------------------------------
+  /api/users:
+    get:
+      operationId: listUsers
+      tags: [Users]
+      summary: List users (paginated, searchable)
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - $ref: "#/components/parameters/SearchParam"
+        - $ref: "#/components/parameters/SortByParam"
+        - $ref: "#/components/parameters/SortDirParam"
+        - name: role
+          in: query
+          schema:
+            type: string
+            enum: [admin, editor, viewer]
+        - name: enabled
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Paginated list of users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      operationId: createUser
+      tags: [Users]
+      summary: Create a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreate"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/users/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      operationId: getUser
+      tags: [Users]
+      summary: Get user by ID
+      responses:
+        "200":
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateUser
+      tags: [Users]
+      summary: Update user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+    delete:
+      operationId: deleteUser
+      tags: [Users]
+      summary: Delete user
+      responses:
+        "204":
+          description: User deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/users/{id}/reset-password:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    post:
+      operationId: resetUserPassword
+      tags: [Users]
+      summary: Admin reset password (generates OTP)
+      responses:
+        "200":
+          description: OTP generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetPasswordResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/users/{id}/api-keys:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      operationId: listUserApiKeys
+      tags: [Users]
+      summary: List user's API keys
+      responses:
+        "200":
+          description: API keys (without full key values)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKey"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: createUserApiKey
+      tags: [Users]
+      summary: Generate a new API key for the user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiKeyCreate"
+      responses:
+        "201":
+          description: API key created (full key shown only once)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyCreated"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/users/{id}/api-keys/{keyId}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+      - name: keyId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    delete:
+      operationId: revokeUserApiKey
+      tags: [Users]
+      summary: Revoke an API key
+      responses:
+        "204":
+          description: API key revoked
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Groups
+  # ---------------------------------------------------------------------------
+  /api/groups:
+    get:
+      operationId: listGroups
+      tags: [Groups]
+      summary: List all groups
+      responses:
+        "200":
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Group"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createGroup
+      tags: [Groups]
+      summary: Create a new group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupCreate"
+      responses:
+        "201":
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/groups/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    put:
+      operationId: updateGroup
+      tags: [Groups]
+      summary: Update group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupUpdate"
+      responses:
+        "200":
+          description: Group updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteGroup
+      tags: [Groups]
+      summary: Delete group
+      responses:
+        "204":
+          description: Group deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/groups/{id}/members:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      operationId: listGroupMembers
+      tags: [Groups]
+      summary: List group members
+      responses:
+        "200":
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupMember"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: addGroupMember
+      tags: [Groups]
+      summary: Add member to group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupMemberAdd"
+      responses:
+        "201":
+          description: Member added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupMember"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/groups/{id}/members/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    delete:
+      operationId: removeGroupMember
+      tags: [Groups]
+      summary: Remove member from group
+      responses:
+        "204":
+          description: Member removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Organizational Units
+  # ---------------------------------------------------------------------------
+  /api/org-units:
+    get:
+      operationId: listOrgUnits
+      tags: [OrgUnits]
+      summary: List organizational units (tree structure)
+      responses:
+        "200":
+          description: OU tree
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgUnit"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createOrgUnit
+      tags: [OrgUnits]
+      summary: Create organizational unit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgUnitCreate"
+      responses:
+        "201":
+          description: OU created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/org-units/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    put:
+      operationId: updateOrgUnit
+      tags: [OrgUnits]
+      summary: Update organizational unit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgUnitUpdate"
+      responses:
+        "200":
+          description: OU updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrgUnit"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteOrgUnit
+      tags: [OrgUnits]
+      summary: Delete organizational unit
+      responses:
+        "204":
+          description: OU deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot delete OU with children or assigned users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ---------------------------------------------------------------------------
+  # Reports
+  # ---------------------------------------------------------------------------
+  /api/reports:
+    get:
+      operationId: listReports
+      tags: [Reports]
+      summary: List reports (paginated)
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - $ref: "#/components/parameters/SearchParam"
+        - $ref: "#/components/parameters/SortByParam"
+        - $ref: "#/components/parameters/SortDirParam"
+        - name: folderId
+          in: query
+          schema:
+            type: integer
+            format: int64
+          description: Filter by folder
+      responses:
+        "200":
+          description: Paginated list of reports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createReport
+      tags: [Reports]
+      summary: Create a new report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportCreate"
+      responses:
+        "201":
+          description: Report created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+
+  /api/reports/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      operationId: getReport
+      tags: [Reports]
+      summary: Get report by ID
+      responses:
+        "200":
+          description: Report details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateReport
+      tags: [Reports]
+      summary: Update report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportUpdate"
+      responses:
+        "200":
+          description: Report updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Report"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+    delete:
+      operationId: deleteReport
+      tags: [Reports]
+      summary: Delete report
+      responses:
+        "204":
+          description: Report deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/reports/{id}/execute:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    post:
+      operationId: executeReport
+      tags: [Reports]
+      summary: Execute report and return data or file
+      description: >
+        Executes the report query against its datasource. For JSON output the
+        response body is a ReportExecuteResponseJson object. For CSV, XLSX, or
+        PDF output the response is the binary file with an appropriate
+        Content-Type header.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportExecuteRequest"
+      responses:
+        "200":
+          description: Report results (JSON)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportExecuteResponseJson"
+            text/csv:
+              schema:
+                type: string
+                format: binary
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /api/reports/{id}/parameters:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      operationId: getReportParameters
+      tags: [Reports]
+      summary: Get report parameter definitions
+      responses:
+        "200":
+          description: List of parameter definitions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReportParameter"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/reports/{id}/preview:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      operationId: previewReport
+      tags: [Reports]
+      summary: Preview first 50 rows of report results
+      parameters:
+        - name: parameters
+          in: query
+          style: deepObject
+          explode: true
+          schema:
+            type: object
+            additionalProperties:
+              type: string
+          description: Report parameters as query params
+      responses:
+        "200":
+          description: Preview data (max 50 rows)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportExecuteResponseJson"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+
+  # ---------------------------------------------------------------------------
+  # Report Folders
+  # ---------------------------------------------------------------------------
+  /api/report-folders:
+    get:
+      operationId: listReportFolders
+      tags: [ReportFolders]
+      summary: List report folders (tree structure)
+      responses:
+        "200":
+          description: Folder tree
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReportFolder"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createReportFolder
+      tags: [ReportFolders]
+      summary: Create report folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportFolderCreate"
+      responses:
+        "201":
+          description: Folder created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportFolder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/report-folders/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    put:
+      operationId: updateReportFolder
+      tags: [ReportFolders]
+      summary: Update report folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportFolderUpdate"
+      responses:
+        "200":
+          description: Folder updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportFolder"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteReportFolder
+      tags: [ReportFolders]
+      summary: Delete report folder
+      responses:
+        "204":
+          description: Folder deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot delete folder that contains reports or subfolders
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ---------------------------------------------------------------------------
+  # Datasources
+  # ---------------------------------------------------------------------------
+  /api/datasources:
+    get:
+      operationId: listDatasources
+      tags: [Datasources]
+      summary: List all datasources
+      responses:
+        "200":
+          description: List of datasources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Datasource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createDatasource
+      tags: [Datasources]
+      summary: Create a new datasource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatasourceCreate"
+      responses:
+        "201":
+          description: Datasource created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Datasource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/datasources/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      operationId: getDatasource
+      tags: [Datasources]
+      summary: Get datasource by ID
+      responses:
+        "200":
+          description: Datasource details (password excluded)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Datasource"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateDatasource
+      tags: [Datasources]
+      summary: Update datasource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatasourceUpdate"
+      responses:
+        "200":
+          description: Datasource updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Datasource"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteDatasource
+      tags: [Datasources]
+      summary: Delete datasource
+      responses:
+        "204":
+          description: Datasource deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Cannot delete datasource used by reports
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /api/datasources/{id}/test:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    post:
+      operationId: testDatasource
+      tags: [Datasources]
+      summary: Test datasource connection
+      responses:
+        "200":
+          description: Connection test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatasourceTestResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/datasources/{id}/tables:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      operationId: listDatasourceTables
+      tags: [Datasources]
+      summary: List tables and views in the datasource
+      responses:
+        "200":
+          description: List of tables
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TableInfo"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/datasources/{id}/columns/{table}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+      - name: table
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Table or view name
+    get:
+      operationId: listDatasourceColumns
+      tags: [Datasources]
+      summary: List columns for a table
+      responses:
+        "200":
+          description: List of columns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ColumnInfo"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Datasinks
+  # ---------------------------------------------------------------------------
+  /api/datasinks:
+    get:
+      operationId: listDatasinks
+      tags: [Datasinks]
+      summary: List all datasinks
+      responses:
+        "200":
+          description: List of datasinks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Datasink"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createDatasink
+      tags: [Datasinks]
+      summary: Create a new datasink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatasinkCreate"
+      responses:
+        "201":
+          description: Datasink created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Datasink"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/datasinks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    put:
+      operationId: updateDatasink
+      tags: [Datasinks]
+      summary: Update datasink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatasinkUpdate"
+      responses:
+        "200":
+          description: Datasink updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Datasink"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteDatasink
+      tags: [Datasinks]
+      summary: Delete datasink
+      responses:
+        "204":
+          description: Datasink deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/datasinks/{id}/test:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    post:
+      operationId: testDatasink
+      tags: [Datasinks]
+      summary: Test datasink connection
+      responses:
+        "200":
+          description: Connection test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  error:
+                    type: string
+                    nullable: true
+                required: [success]
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/datasinks/{id}/send:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    post:
+      operationId: sendToDatasink
+      tags: [Datasinks]
+      summary: Send report output to datasink (async)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatasinkSendRequest"
+      responses:
+        "202":
+          description: Send job queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatasinkSendResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Dashboards
+  # ---------------------------------------------------------------------------
+  /api/dashboards:
+    get:
+      operationId: listDashboards
+      tags: [Dashboards]
+      summary: List dashboards
+      responses:
+        "200":
+          description: List of dashboards (without dadgets)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Dashboard"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createDashboard
+      tags: [Dashboards]
+      summary: Create a new dashboard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DashboardCreate"
+      responses:
+        "201":
+          description: Dashboard created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /api/dashboards/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      operationId: getDashboard
+      tags: [Dashboards]
+      summary: Get dashboard with all dadgets
+      responses:
+        "200":
+          description: Dashboard with dadgets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateDashboard
+      tags: [Dashboards]
+      summary: Update dashboard metadata or layout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DashboardUpdate"
+      responses:
+        "200":
+          description: Dashboard updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteDashboard
+      tags: [Dashboards]
+      summary: Delete dashboard and all its dadgets
+      responses:
+        "204":
+          description: Dashboard deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/dashboards/{id}/dadgets:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    post:
+      operationId: addDadget
+      tags: [Dashboards]
+      summary: Add a dadget to the dashboard
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DadgetCreate"
+      responses:
+        "201":
+          description: Dadget added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dadget"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/dashboards/{id}/dadgets/{dadgetId}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+      - name: dadgetId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    put:
+      operationId: updateDadget
+      tags: [Dashboards]
+      summary: Update a dadget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DadgetUpdate"
+      responses:
+        "200":
+          description: Dadget updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dadget"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: removeDadget
+      tags: [Dashboards]
+      summary: Remove a dadget from the dashboard
+      responses:
+        "204":
+          description: Dadget removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Scheduler
+  # ---------------------------------------------------------------------------
+  /api/scheduler/jobs:
+    get:
+      operationId: listScheduleJobs
+      tags: [Scheduler]
+      summary: List scheduled jobs
+      responses:
+        "200":
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScheduleJob"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      operationId: createScheduleJob
+      tags: [Scheduler]
+      summary: Create a scheduled job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleJobCreate"
+      responses:
+        "201":
+          description: Job created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleJob"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+
+  /api/scheduler/jobs/{id}:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      operationId: getScheduleJob
+      tags: [Scheduler]
+      summary: Get scheduled job by ID
+      responses:
+        "200":
+          description: Job details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleJob"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      operationId: updateScheduleJob
+      tags: [Scheduler]
+      summary: Update scheduled job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScheduleJobUpdate"
+      responses:
+        "200":
+          description: Job updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScheduleJob"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+    delete:
+      operationId: deleteScheduleJob
+      tags: [Scheduler]
+      summary: Delete scheduled job
+      responses:
+        "204":
+          description: Job deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/scheduler/jobs/{id}/execute:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    post:
+      operationId: triggerScheduleJob
+      tags: [Scheduler]
+      summary: Manually trigger a job execution (async)
+      responses:
+        "202":
+          description: Job execution queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManualTriggerResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/scheduler/jobs/{id}/executions:
+    parameters:
+      - $ref: "#/components/parameters/PathId"
+    get:
+      operationId: listJobExecutions
+      tags: [Scheduler]
+      summary: Get execution history for a job
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: Paginated list of executions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/JobExecution"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # Permissions
+  # ---------------------------------------------------------------------------
+  /api/permissions/check:
+    get:
+      operationId: checkPermission
+      tags: [Permissions]
+      summary: Check if the current user has a permission
+      parameters:
+        - name: entityType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [report, dashboard, folder, datasource, datasink]
+        - name: entityId
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: permission
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [read, write, execute, admin]
+      responses:
+        "200":
+          description: Permission check result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionCheckResult"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/permissions/acl/{entityType}/{entityId}:
+    parameters:
+      - name: entityType
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [report, dashboard, folder, datasource, datasink]
+      - name: entityId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    get:
+      operationId: getAcl
+      tags: [Permissions]
+      summary: Get access control list for an entity
+      responses:
+        "200":
+          description: ACL entries
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ACL"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      operationId: addAce
+      tags: [Permissions]
+      summary: Add an access control entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ACECreate"
+      responses:
+        "201":
+          description: ACE created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ACE"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /api/permissions/ace/{aceId}:
+    parameters:
+      - name: aceId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int64
+    delete:
+      operationId: removeAce
+      tags: [Permissions]
+      summary: Remove an access control entry
+      responses:
+        "204":
+          description: ACE removed
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ---------------------------------------------------------------------------
+  # System
+  # ---------------------------------------------------------------------------
+  /api/system/health:
+    get:
+      operationId: healthCheck
+      tags: [System]
+      summary: Health check (no authentication required)
+      security: []
+      responses:
+        "200":
+          description: System health status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "503":
+          description: System unhealthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/system/info:
+    get:
+      operationId: systemInfo
+      tags: [System]
+      summary: Get system info (version, uptime)
+      responses:
+        "200":
+          description: System information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemInfo"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/system/config:
+    get:
+      operationId: getSystemConfig
+      tags: [System]
+      summary: Get system configuration (admin only)
+      responses:
+        "200":
+          description: System configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemConfig"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    put:
+      operationId: updateSystemConfig
+      tags: [System]
+      summary: Update system configuration (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SystemConfig"
+      responses:
+        "200":
+          description: Configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemConfig"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"

@@ -122,19 +122,23 @@ public static class DiscoveryEndpoints
         var ports = new[]
         {
             new { port = 3306, service = "MYSQL", description = "MySQL / MariaDB" },
+            new { port = 3307, service = "MYSQL", description = "MySQL (Docker alternate)" },
             new { port = 5432, service = "POSTGRESQL", description = "PostgreSQL" },
+            new { port = 5433, service = "POSTGRESQL", description = "PostgreSQL (alternate)" },
             new { port = 1433, service = "MSSQL", description = "Microsoft SQL Server" },
+            new { port = 1434, service = "MSSQL", description = "SQL Server Browser" },
             new { port = 1521, service = "ORACLE", description = "Oracle Database" },
             new { port = 27017, service = "MONGODB", description = "MongoDB" },
+            new { port = 27018, service = "MONGODB", description = "MongoDB (shard)" },
             new { port = 6379, service = "REDIS", description = "Redis" },
-            new { port = 9200, service = "ELASTICSEARCH", description = "Elasticsearch" },
+            new { port = 6380, service = "REDIS", description = "Redis (alternate)" },
+            new { port = 9200, service = "ELASTICSEARCH", description = "Elasticsearch HTTP" },
+            new { port = 9300, service = "ELASTICSEARCH", description = "Elasticsearch transport" },
             new { port = 5439, service = "REDSHIFT", description = "Amazon Redshift" },
-            new { port = 8123, service = "CLICKHOUSE", description = "ClickHouse (HTTP)" },
+            new { port = 8123, service = "CLICKHOUSE", description = "ClickHouse HTTP" },
             new { port = 9042, service = "CASSANDRA", description = "Apache Cassandra" },
             new { port = 7687, service = "NEO4J", description = "Neo4j Bolt" },
             new { port = 8086, service = "INFLUXDB", description = "InfluxDB" },
-            new { port = 443, service = "HTTPS", description = "HTTPS / REST APIs" },
-            new { port = 80, service = "HTTP", description = "HTTP" }
         };
 
         return Results.Ok(new { data = ports });

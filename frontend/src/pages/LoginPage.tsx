@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import api from '../api/client';
@@ -6,10 +6,23 @@ import api from '../api/client';
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuthStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const saved = localStorage.getItem('rememberedUser');
+    if (saved) {
+      try {
+        const { username: u, password: p } = JSON.parse(saved);
+        setUsername(u);
+        setPassword(p);
+        setRememberMe(true);
+      } catch { /* ignore */ }
+    }
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -17,6 +30,11 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const res = await api.post('/auth/login', { username, password });
+      if (rememberMe) {
+        localStorage.setItem('rememberedUser', JSON.stringify({ username, password }));
+      } else {
+        localStorage.removeItem('rememberedUser');
+      }
       login(res.data.token, res.data.user);
       navigate('/');
     } catch (err: unknown) {
@@ -51,7 +69,7 @@ export default function LoginPage() {
               required
             />
           </div>
-          <div className="mb-6">
+          <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Password
             </label>
@@ -62,6 +80,18 @@ export default function LoginPage() {
               className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
+          </div>
+          <div className="mb-6 flex items-center">
+            <input
+              id="remember"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="remember" className="ml-2 text-sm text-gray-600">
+              Remember me
+            </label>
           </div>
           <button
             type="submit"

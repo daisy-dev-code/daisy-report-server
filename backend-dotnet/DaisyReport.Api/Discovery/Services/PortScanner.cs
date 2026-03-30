@@ -16,7 +16,7 @@ public class PortScanner : IPortScanner
 {
     private readonly ILogger<PortScanner> _logger;
 
-    /// <summary>Well-known database and service ports.</summary>
+    /// <summary>Well-known database and data service ports only.</summary>
     public static readonly int[] DefaultPorts =
     {
         3306,  // MySQL / MariaDB
@@ -27,12 +27,16 @@ public class PortScanner : IPortScanner
         6379,  // Redis
         9200,  // Elasticsearch
         5439,  // Redshift
-        8123,  // ClickHouse
+        8123,  // ClickHouse HTTP
         9042,  // Cassandra
-        7687,  // Neo4j
+        7687,  // Neo4j Bolt
         8086,  // InfluxDB
-        443,   // HTTPS / REST APIs
-        80     // HTTP
+        3307,  // MySQL (Docker alternate)
+        5433,  // PostgreSQL (alternate)
+        1434,  // SQL Server Browser
+        6380,  // Redis (alternate)
+        9300,  // Elasticsearch transport
+        27018, // MongoDB (shard)
     };
 
     public PortScanner(ILogger<PortScanner> logger)

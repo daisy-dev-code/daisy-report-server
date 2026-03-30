@@ -76,19 +76,28 @@ public class DiscoveryService : IDiscoveryService
         {
             var discovery = port switch
             {
-                3306 => await _serviceProber.ProbeMySqlAsync(host, port, username, password),
-                5432 => await _serviceProber.ProbePostgreSqlAsync(host, port, username, password),
-                1433 => await _serviceProber.ProbeSqlServerAsync(host, port, username, password),
-                27017 => await _serviceProber.ProbeMongoDbAsync(host, port),
-                6379 => await _serviceProber.ProbeRedisAsync(host, port),
-                9200 => await _serviceProber.ProbeElasticsearchAsync(host, port),
+                3306 or 3307 => await _serviceProber.ProbeMySqlAsync(host, port, username, password),
+                5432 or 5433 => await _serviceProber.ProbePostgreSqlAsync(host, port, username, password),
+                1433 or 1434 => await _serviceProber.ProbeSqlServerAsync(host, port, username, password),
+                1521 => await _serviceProber.ProbeServiceAsync(host, port), // Oracle
+                27017 or 27018 => await _serviceProber.ProbeMongoDbAsync(host, port),
+                6379 or 6380 => await _serviceProber.ProbeRedisAsync(host, port),
+                9200 or 9300 => await _serviceProber.ProbeElasticsearchAsync(host, port),
+                8123 => await _serviceProber.ProbeServiceAsync(host, port), // ClickHouse
+                9042 => await _serviceProber.ProbeServiceAsync(host, port), // Cassandra
+                7687 => await _serviceProber.ProbeServiceAsync(host, port), // Neo4j
+                8086 => await _serviceProber.ProbeServiceAsync(host, port), // InfluxDB
                 _ => await _serviceProber.ProbeServiceAsync(host, port)
             };
             return discovery;
         });
 
         var probeResults = await Task.WhenAll(probeTasks);
-        result.Services = probeResults.Where(r => r != null).Select(r => r!).ToList();
+        // Only return services that are actually accessible — don't show noise
+        result.Services = probeResults
+            .Where(r => r != null && r.IsAccessible)
+            .Select(r => r!)
+            .ToList();
 
         // Mark host as alive if any service responded, even if ping failed
         if (result.Services.Any(s => s.IsAccessible))
@@ -165,8 +174,10 @@ public class DiscoveryService : IDiscoveryService
             });
             await Task.WhenAll(probeTasks);
 
-            scanResult.Discoveries = discoveries.OrderBy(d => d.Host).ThenBy(d => d.Port).ToList();
-            scanResult.ServicesFound = discoveries.Count(d => d.IsAccessible);
+            scanResult.Discoveries = discoveries
+                .Where(d => d.IsAccessible)
+                .OrderBy(d => d.Host).ThenBy(d => d.Port).ToList();
+            scanResult.ServicesFound = scanResult.Discoveries.Count;
         }
         catch (Exception ex)
         {

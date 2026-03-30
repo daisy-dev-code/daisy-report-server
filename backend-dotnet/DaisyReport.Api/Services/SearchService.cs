@@ -173,20 +173,21 @@ public class SearchService : ISearchService
 
         // Index users
         var users = await conn.QueryAsync(
-            "SELECT id, username, email, display_name FROM RS_USERS WHERE is_active = 1");
+            "SELECT id, username, email, firstname, lastname FROM RS_USER WHERE enabled = 1");
         foreach (var u in users)
         {
+            var displayName = $"{(string)(u.firstname ?? "")} {(string)(u.lastname ?? "")}".Trim();
             await IndexEntityAsync("user", (long)u.id, new Dictionary<string, string>
             {
                 ["username"] = (string)(u.username ?? ""),
                 ["email"] = (string)(u.email ?? ""),
-                ["display_name"] = (string)(u.display_name ?? "")
+                ["display_name"] = displayName
             });
         }
 
         // Index reports
         var reports = await conn.QueryAsync(
-            "SELECT id, name, description FROM RS_REPORTS");
+            "SELECT id, name, description FROM RS_REPORT");
         foreach (var r in reports)
         {
             await IndexEntityAsync("report", (long)r.id, new Dictionary<string, string>
@@ -198,7 +199,7 @@ public class SearchService : ISearchService
 
         // Index dashboards
         var dashboards = await conn.QueryAsync(
-            "SELECT id, name, description FROM RS_DASHBOARDS");
+            "SELECT id, name, description FROM RS_DASHBOARD");
         foreach (var d in dashboards)
         {
             await IndexEntityAsync("dashboard", (long)d.id, new Dictionary<string, string>

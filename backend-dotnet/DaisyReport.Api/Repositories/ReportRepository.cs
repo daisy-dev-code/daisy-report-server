@@ -111,12 +111,12 @@ public class ReportRepository : IReportRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var parameters = await conn.QueryAsync<ReportParameter>(
-            @"SELECT id AS Id, report_id AS ReportId, name AS Name, label AS Label,
-                     param_type AS ParamType, default_value AS DefaultValue,
-                     required AS Required, sort_order AS SortOrder
-              FROM RS_REPORT_PARAMETER
+            @"SELECT id AS Id, report_id AS ReportId, name AS Name, key_field AS KeyField,
+                     type AS Type, default_value AS DefaultValue,
+                     mandatory AS Mandatory, position AS Position
+              FROM RS_PARAMETER_DEF
               WHERE report_id = @ReportId
-              ORDER BY sort_order ASC",
+              ORDER BY position ASC",
             new { ReportId = reportId });
         return parameters.ToList();
     }

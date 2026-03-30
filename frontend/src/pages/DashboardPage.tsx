@@ -12,15 +12,21 @@ interface HealthInfo {
 
 interface AuditEntry {
   id: number;
+  userId?: number;
   action: string;
-  username?: string;
   entityType?: string;
-  entityName?: string;
-  timestamp: string;
+  entityId?: number;
   details?: string;
+  ipAddress?: string;
+  createdAt: string;
 }
 
-interface PaginatedResponse<T> {
+interface StandardPaginatedResponse<T> {
+  data: T[];
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+}
+
+interface UserPaginatedResponse<T> {
   items: T[];
   totalItems: number;
 }
@@ -28,27 +34,27 @@ interface PaginatedResponse<T> {
 export default function DashboardPage() {
   const reports = useQuery({
     queryKey: ['dashboard-reports'],
-    queryFn: () => api.get<PaginatedResponse<unknown>>('/reports', { params: { page: 1, pageSize: 1 } }).then(r => r.data.totalItems),
+    queryFn: () => api.get<StandardPaginatedResponse<unknown>>('/reports', { params: { page: 1, pageSize: 1 } }).then(r => r.data.pagination.total),
   });
 
   const datasources = useQuery({
     queryKey: ['dashboard-datasources'],
-    queryFn: () => api.get<PaginatedResponse<unknown>>('/datasources', { params: { page: 1, pageSize: 1 } }).then(r => r.data.totalItems),
+    queryFn: () => api.get<{ data: unknown[] }>('/datasources').then(r => r.data.data.length),
   });
 
   const jobs = useQuery({
     queryKey: ['dashboard-jobs'],
-    queryFn: () => api.get<PaginatedResponse<unknown>>('/scheduler/jobs', { params: { page: 1, pageSize: 1 } }).then(r => r.data.totalItems),
+    queryFn: () => api.get<StandardPaginatedResponse<unknown>>('/scheduler/jobs', { params: { page: 1, pageSize: 1 } }).then(r => r.data.pagination.total),
   });
 
   const users = useQuery({
     queryKey: ['dashboard-users'],
-    queryFn: () => api.get<PaginatedResponse<unknown>>('/users', { params: { page: 1, pageSize: 1 } }).then(r => r.data.totalItems),
+    queryFn: () => api.get<UserPaginatedResponse<unknown>>('/users', { params: { page: 1, pageSize: 1 } }).then(r => r.data.totalItems),
   });
 
   const audit = useQuery({
     queryKey: ['dashboard-audit'],
-    queryFn: () => api.get<PaginatedResponse<AuditEntry>>('/audit', { params: { pageSize: 10 } }).then(r => r.data.items ?? r.data),
+    queryFn: () => api.get<StandardPaginatedResponse<AuditEntry>>('/audit', { params: { pageSize: 10 } }).then(r => r.data.data),
   });
 
   const health = useQuery({
@@ -146,14 +152,14 @@ export default function DashboardPage() {
                 (Array.isArray(audit.data) ? audit.data : []).slice(0, 10).map((entry) => (
                   <div key={entry.id} className="flex items-start gap-3 text-sm border-b border-gray-100 pb-2 last:border-0">
                     <div className="flex-1">
-                      <span className="font-medium">{entry.username ?? 'System'}</span>{' '}
+                      <span className="font-medium">User {entry.userId ?? 'System'}</span>{' '}
                       <span className="text-gray-600">{entry.action}</span>
-                      {entry.entityName && (
-                        <span className="text-gray-500"> - {entry.entityType}: {entry.entityName}</span>
+                      {entry.entityType && (
+                        <span className="text-gray-500"> - {entry.entityType}{entry.entityId ? ` #${entry.entityId}` : ''}</span>
                       )}
                     </div>
                     <span className="text-xs text-gray-400 whitespace-nowrap">
-                      {new Date(entry.timestamp).toLocaleString()}
+                      {new Date(entry.createdAt).toLocaleString()}
                     </span>
                   </div>
                 ))

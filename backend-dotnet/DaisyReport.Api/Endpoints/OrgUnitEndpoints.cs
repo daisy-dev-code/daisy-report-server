@@ -28,9 +28,7 @@ public static class OrgUnitEndpoints
                 u.Name,
                 u.Description,
                 u.ParentId,
-                u.IsActive,
-                u.CreatedAt,
-                u.UpdatedAt
+                u.CreatedAt
             })
         });
     }
@@ -46,9 +44,7 @@ public static class OrgUnitEndpoints
             unit.Name,
             unit.Description,
             unit.ParentId,
-            unit.IsActive,
-            unit.CreatedAt,
-            unit.UpdatedAt
+            unit.CreatedAt
         });
     }
 
@@ -64,9 +60,7 @@ public static class OrgUnitEndpoints
             Name = request.Name,
             Description = request.Description,
             ParentId = request.ParentId,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow
         };
 
         var id = await repo.CreateAsync(unit);
@@ -82,8 +76,6 @@ public static class OrgUnitEndpoints
         if (request.Name != null) existing.Name = request.Name;
         if (request.Description != null) existing.Description = request.Description;
         if (request.ParentId.HasValue) existing.ParentId = request.ParentId;
-        if (request.IsActive.HasValue) existing.IsActive = request.IsActive.Value;
-        existing.UpdatedAt = DateTime.UtcNow;
 
         var result = await repo.UpdateAsync(existing);
         if (!result) return Results.Problem("Failed to update org unit.");
@@ -101,4 +93,4 @@ public static class OrgUnitEndpoints
 }
 
 public record CreateOrgUnitRequest(string Name, string? Description, long? ParentId);
-public record UpdateOrgUnitRequest(string? Name, string? Description, long? ParentId, bool? IsActive);
+public record UpdateOrgUnitRequest(string? Name, string? Description, long? ParentId);

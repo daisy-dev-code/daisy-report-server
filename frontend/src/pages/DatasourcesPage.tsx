@@ -15,12 +15,8 @@ interface Datasource {
   created: string;
 }
 
-interface PaginatedResponse {
-  items: Datasource[];
-  totalItems: number;
-  totalPages: number;
-  page: number;
-  pageSize: number;
+interface DatasourceListResponse {
+  data: Datasource[];
 }
 
 interface DatasourceForm {
@@ -50,12 +46,10 @@ export default function DatasourcesPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [testResults, setTestResults] = useState<Record<number, TestResult>>({});
 
-  const pageSize = 20;
-
   const { data, isLoading } = useQuery({
     queryKey: ['datasources', page, search],
     queryFn: () =>
-      api.get<PaginatedResponse>('/datasources', { params: { page, pageSize, search: search || undefined } }).then(r => r.data),
+      api.get<DatasourceListResponse>('/datasources').then(r => r.data),
   });
 
   const saveMutation = useMutation({
@@ -177,9 +171,8 @@ export default function DatasourcesPage() {
       <h2 className="text-2xl font-bold mb-4">Datasources</h2>
       <DataTable
         columns={columns}
-        data={data?.items ?? []}
+        data={data?.data ?? []}
         loading={isLoading}
-        pagination={data ? { page: data.page, pageSize: data.pageSize, totalItems: data.totalItems, totalPages: data.totalPages } : undefined}
         onPageChange={setPage}
         searchValue={search}
         onSearch={(v) => { setSearch(v); setPage(1); }}

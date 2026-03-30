@@ -18,8 +18,7 @@ public class GroupRepository : IGroupRepository
         using var conn = await _database.GetConnectionAsync();
         return await conn.QuerySingleOrDefaultAsync<Group>(
             @"SELECT id AS Id, name AS Name, description AS Description,
-                     parent_id AS ParentId, is_active AS IsActive,
-                     created_at AS CreatedAt, updated_at AS UpdatedAt
+                     created_at AS CreatedAt
               FROM RS_GROUP WHERE id = @Id",
             new { Id = id });
     }
@@ -41,8 +40,7 @@ public class GroupRepository : IGroupRepository
 
         var groups = (await conn.QueryAsync<Group>(
             $@"SELECT id AS Id, name AS Name, description AS Description,
-                      parent_id AS ParentId, is_active AS IsActive,
-                      created_at AS CreatedAt, updated_at AS UpdatedAt
+                      created_at AS CreatedAt
                FROM RS_GROUP {whereClause}
                ORDER BY id ASC
                LIMIT @PageSize OFFSET @Offset",
@@ -55,17 +53,14 @@ public class GroupRepository : IGroupRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var id = await conn.ExecuteScalarAsync<long>(
-            @"INSERT INTO RS_GROUP (name, description, parent_id, is_active, created_at, updated_at)
-              VALUES (@Name, @Description, @ParentId, @IsActive, @CreatedAt, @UpdatedAt);
+            @"INSERT INTO RS_GROUP (name, description, created_at)
+              VALUES (@Name, @Description, @CreatedAt);
               SELECT LAST_INSERT_ID();",
             new
             {
                 group.Name,
                 group.Description,
-                group.ParentId,
-                group.IsActive,
-                group.CreatedAt,
-                group.UpdatedAt
+                group.CreatedAt
             });
         return id;
     }
@@ -75,17 +70,13 @@ public class GroupRepository : IGroupRepository
         using var conn = await _database.GetConnectionAsync();
         var rows = await conn.ExecuteAsync(
             @"UPDATE RS_GROUP SET
-                name = @Name, description = @Description, parent_id = @ParentId,
-                is_active = @IsActive, updated_at = @UpdatedAt
+                name = @Name, description = @Description
               WHERE id = @Id",
             new
             {
                 group.Id,
                 group.Name,
-                group.Description,
-                group.ParentId,
-                group.IsActive,
-                group.UpdatedAt
+                group.Description
             });
         return rows > 0;
     }
@@ -104,9 +95,9 @@ public class GroupRepository : IGroupRepository
         using var conn = await _database.GetConnectionAsync();
         var members = await conn.QueryAsync<User>(
             @"SELECT u.id AS Id, u.username AS Username, u.email AS Email,
-                     u.display_name AS DisplayName, u.role AS Role,
-                     u.is_active AS IsActive, u.created_at AS CreatedAt
-              FROM RS_USERS u
+                     u.firstname AS Firstname, u.lastname AS Lastname,
+                     u.enabled AS Enabled, u.created_at AS CreatedAt
+              FROM RS_USER u
               INNER JOIN RS_GROUP_MEMBER gm ON gm.user_id = u.id
               WHERE gm.group_id = @GroupId
               ORDER BY u.username ASC",
@@ -118,9 +109,9 @@ public class GroupRepository : IGroupRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var rows = await conn.ExecuteAsync(
-            @"INSERT IGNORE INTO RS_GROUP_MEMBER (group_id, user_id, created_at)
-              VALUES (@GroupId, @UserId, @CreatedAt)",
-            new { GroupId = groupId, UserId = userId, CreatedAt = DateTime.UtcNow });
+            @"INSERT IGNORE INTO RS_GROUP_MEMBER (group_id, user_id)
+              VALUES (@GroupId, @UserId)",
+            new { GroupId = groupId, UserId = userId });
         return rows > 0;
     }
 

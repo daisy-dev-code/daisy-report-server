@@ -20,7 +20,9 @@ export default function LoginPage() {
       login(res.data.token, res.data.user);
       navigate('/');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Login failed';
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const axiosErr = err as any;
+      const msg = axiosErr?.response?.data?.error || axiosErr?.message || 'Login failed';
       setError(msg);
     } finally {
       setLoading(false);

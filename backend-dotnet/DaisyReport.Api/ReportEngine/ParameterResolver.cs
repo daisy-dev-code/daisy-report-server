@@ -42,11 +42,11 @@ public class ParameterResolver
             // 4. Type coercion
             if (value != null)
             {
-                value = CoerceType(value.ToString()!, param.ParamType);
+                value = CoerceType(value.ToString()!, param.Type);
             }
 
             // 5. Required check
-            if (param.Required && value == null)
+            if (param.Mandatory && value == null)
             {
                 throw new ArgumentException($"Required parameter '{param.Name}' was not supplied and has no default value.");
             }

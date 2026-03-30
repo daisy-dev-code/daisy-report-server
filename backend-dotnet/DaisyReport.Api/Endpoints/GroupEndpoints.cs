@@ -38,10 +38,7 @@ public static class GroupEndpoints
                 g.Id,
                 g.Name,
                 g.Description,
-                g.ParentId,
-                g.IsActive,
-                g.CreatedAt,
-                g.UpdatedAt
+                g.CreatedAt
             }),
             pagination = new
             {
@@ -63,10 +60,7 @@ public static class GroupEndpoints
             group.Id,
             group.Name,
             group.Description,
-            group.ParentId,
-            group.IsActive,
-            group.CreatedAt,
-            group.UpdatedAt
+            group.CreatedAt
         });
     }
 
@@ -81,10 +75,7 @@ public static class GroupEndpoints
         {
             Name = request.Name,
             Description = request.Description,
-            ParentId = request.ParentId,
-            IsActive = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow
         };
 
         var id = await repo.CreateAsync(group);
@@ -99,9 +90,6 @@ public static class GroupEndpoints
 
         if (request.Name != null) existing.Name = request.Name;
         if (request.Description != null) existing.Description = request.Description;
-        if (request.ParentId.HasValue) existing.ParentId = request.ParentId;
-        if (request.IsActive.HasValue) existing.IsActive = request.IsActive.Value;
-        existing.UpdatedAt = DateTime.UtcNow;
 
         var result = await repo.UpdateAsync(existing);
         if (!result) return Results.Problem("Failed to update group.");
@@ -157,6 +145,6 @@ public static class GroupEndpoints
     }
 }
 
-public record CreateGroupRequest(string Name, string? Description, long? ParentId);
-public record UpdateGroupRequest(string? Name, string? Description, long? ParentId, bool? IsActive);
+public record CreateGroupRequest(string Name, string? Description);
+public record UpdateGroupRequest(string? Name, string? Description);
 public record AddMemberRequest(long UserId);

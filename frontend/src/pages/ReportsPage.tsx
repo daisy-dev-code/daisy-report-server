@@ -14,11 +14,13 @@ interface Report {
 }
 
 interface PaginatedResponse {
-  items: Report[];
-  totalItems: number;
-  totalPages: number;
-  page: number;
-  pageSize: number;
+  data: Report[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 interface ReportForm {
@@ -121,9 +123,9 @@ export default function ReportsPage() {
       <h2 className="text-2xl font-bold mb-4">Reports</h2>
       <DataTable
         columns={columns}
-        data={data?.items ?? []}
+        data={data?.data ?? []}
         loading={isLoading}
-        pagination={data ? { page: data.page, pageSize: data.pageSize, totalItems: data.totalItems, totalPages: data.totalPages } : undefined}
+        pagination={data ? { page: data.pagination.page, pageSize: data.pagination.pageSize, totalItems: data.pagination.total, totalPages: data.pagination.totalPages } : undefined}
         onPageChange={setPage}
         searchValue={search}
         onSearch={(v) => { setSearch(v); setPage(1); }}

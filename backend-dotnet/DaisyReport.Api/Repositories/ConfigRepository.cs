@@ -22,7 +22,7 @@ public class ConfigRepository : IConfigRepository
         var entries = await conn.QueryAsync<ConfigEntry>(
             $@"SELECT id AS Id, config_key AS ConfigKey, config_value AS ConfigValue,
                       category AS Category, description AS Description, updated_at AS UpdatedAt
-               FROM RS_SYSTEM_CONFIG {whereClause}
+               FROM RS_CONFIG {whereClause}
                ORDER BY category, config_key",
             new { Category = category });
 
@@ -35,7 +35,7 @@ public class ConfigRepository : IConfigRepository
         return await conn.QuerySingleOrDefaultAsync<ConfigEntry>(
             @"SELECT id AS Id, config_key AS ConfigKey, config_value AS ConfigValue,
                      category AS Category, description AS Description, updated_at AS UpdatedAt
-              FROM RS_SYSTEM_CONFIG WHERE config_key = @Key",
+              FROM RS_CONFIG WHERE config_key = @Key",
             new { Key = key });
     }
 
@@ -43,7 +43,7 @@ public class ConfigRepository : IConfigRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var rows = await conn.ExecuteAsync(
-            @"INSERT INTO RS_SYSTEM_CONFIG (config_key, config_value, category, description, updated_at)
+            @"INSERT INTO RS_CONFIG (config_key, config_value, category, description, updated_at)
               VALUES (@Key, @Value, @Category, @Description, @Now)
               ON DUPLICATE KEY UPDATE
                 config_value = @Value,
@@ -65,7 +65,7 @@ public class ConfigRepository : IConfigRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var rows = await conn.ExecuteAsync(
-            "DELETE FROM RS_SYSTEM_CONFIG WHERE config_key = @Key",
+            "DELETE FROM RS_CONFIG WHERE config_key = @Key",
             new { Key = key });
         return rows > 0;
     }

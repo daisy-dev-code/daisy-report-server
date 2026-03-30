@@ -39,7 +39,7 @@ public class AuditRepository : IAuditRepository
         var conditions = new List<string>();
         var useJoin = !string.IsNullOrWhiteSpace(username);
 
-        if (userId.HasValue) conditions.Add("a.user_id = @UserId");
+        if (userId.HasValue) conditions.Add("a.username = @UserId");
         if (!string.IsNullOrWhiteSpace(action)) conditions.Add("a.action = @Action");
         if (!string.IsNullOrWhiteSpace(entityType)) conditions.Add("a.entity_type = @EntityType");
         if (dateFrom.HasValue) conditions.Add("a.created_at >= @DateFrom");
@@ -51,7 +51,7 @@ public class AuditRepository : IAuditRepository
             : "";
 
         var joinClause = useJoin
-            ? "LEFT JOIN RS_USERS u ON a.user_id = u.id"
+            ? "LEFT JOIN RS_USER u ON a.username = CAST(u.id AS CHAR)"
             : "";
 
         var offset = (page - 1) * pageSize;
@@ -72,8 +72,8 @@ public class AuditRepository : IAuditRepository
             parameters);
 
         var logs = (await conn.QueryAsync<AuditLog>(
-            $@"SELECT a.id AS Id, a.user_id AS UserId, a.action AS Action, a.entity_type AS EntityType,
-                      a.entity_id AS EntityId, a.details AS Details, a.ip_address AS IpAddress,
+            $@"SELECT a.id AS Id, a.username AS UserId, a.action AS Action, a.entity_type AS EntityType,
+                      a.entity_id AS EntityId, a.details AS Details, a.remote_addr AS IpAddress,
                       a.created_at AS CreatedAt
                FROM RS_AUDIT_LOG a {joinClause} {whereClause}
                ORDER BY a.created_at DESC
@@ -87,8 +87,8 @@ public class AuditRepository : IAuditRepository
     {
         using var conn = await _database.GetConnectionAsync();
         return await conn.QuerySingleOrDefaultAsync<AuditLog>(
-            @"SELECT id AS Id, user_id AS UserId, action AS Action, entity_type AS EntityType,
-                     entity_id AS EntityId, details AS Details, ip_address AS IpAddress,
+            @"SELECT id AS Id, username AS UserId, action AS Action, entity_type AS EntityType,
+                     entity_id AS EntityId, details AS Details, remote_addr AS IpAddress,
                      created_at AS CreatedAt
               FROM RS_AUDIT_LOG WHERE id = @Id",
             new { Id = id });

@@ -25,14 +25,14 @@ public class NotificationRepository : INotificationRepository
         var offset = (page - 1) * pageSize;
 
         var total = await conn.ExecuteScalarAsync<int>(
-            $"SELECT COUNT(*) FROM RS_NOTIFICATIONS {whereClause}",
+            $"SELECT COUNT(*) FROM RS_NOTIFICATION {whereClause}",
             new { UserId = userId });
 
         var notifications = (await conn.QueryAsync<Notification>(
             $@"SELECT id AS Id, user_id AS UserId, type AS Type, title AS Title,
                       message AS Message, read_flag AS ReadFlag, link AS Link,
                       created_at AS CreatedAt
-               FROM RS_NOTIFICATIONS {whereClause}
+               FROM RS_NOTIFICATION {whereClause}
                ORDER BY created_at DESC
                LIMIT @PageSize OFFSET @Offset",
             new { UserId = userId, PageSize = pageSize, Offset = offset })).ToList();
@@ -44,7 +44,7 @@ public class NotificationRepository : INotificationRepository
     {
         using var conn = await _database.GetConnectionAsync();
         return await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM RS_NOTIFICATIONS WHERE user_id = @UserId AND read_flag = 0",
+            "SELECT COUNT(*) FROM RS_NOTIFICATION WHERE user_id = @UserId AND read_flag = 0",
             new { UserId = userId });
     }
 
@@ -52,7 +52,7 @@ public class NotificationRepository : INotificationRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var rows = await conn.ExecuteAsync(
-            "UPDATE RS_NOTIFICATIONS SET read_flag = 1 WHERE id = @Id",
+            "UPDATE RS_NOTIFICATION SET read_flag = 1 WHERE id = @Id",
             new { Id = notificationId });
         return rows > 0;
     }
@@ -61,7 +61,7 @@ public class NotificationRepository : INotificationRepository
     {
         using var conn = await _database.GetConnectionAsync();
         return await conn.ExecuteAsync(
-            "UPDATE RS_NOTIFICATIONS SET read_flag = 1 WHERE user_id = @UserId AND read_flag = 0",
+            "UPDATE RS_NOTIFICATION SET read_flag = 1 WHERE user_id = @UserId AND read_flag = 0",
             new { UserId = userId });
     }
 
@@ -69,7 +69,7 @@ public class NotificationRepository : INotificationRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var id = await conn.ExecuteScalarAsync<long>(
-            @"INSERT INTO RS_NOTIFICATIONS (user_id, type, title, message, read_flag, link, created_at)
+            @"INSERT INTO RS_NOTIFICATION (user_id, type, title, message, read_flag, link, created_at)
               VALUES (@UserId, @Type, @Title, @Message, @ReadFlag, @Link, @CreatedAt);
               SELECT LAST_INSERT_ID();",
             new
@@ -89,7 +89,7 @@ public class NotificationRepository : INotificationRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var rows = await conn.ExecuteAsync(
-            "DELETE FROM RS_NOTIFICATIONS WHERE id = @Id",
+            "DELETE FROM RS_NOTIFICATION WHERE id = @Id",
             new { Id = id });
         return rows > 0;
     }

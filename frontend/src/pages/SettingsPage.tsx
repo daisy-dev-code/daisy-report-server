@@ -4,10 +4,12 @@ import api from '../api/client';
 import Badge from '../components/Badge';
 
 interface ConfigEntry {
-  key: string;
-  value: string;
+  id: number;
+  configKey: string;
+  configValue: string;
   category: string;
   description?: string;
+  updatedAt?: string;
 }
 
 interface HealthInfo {
@@ -37,10 +39,7 @@ export default function SettingsPage() {
 
   const { data: configs, isLoading } = useQuery({
     queryKey: ['system-config'],
-    queryFn: () => api.get<ConfigEntry[] | { items: ConfigEntry[] }>('/system/config').then(r => {
-      const d = r.data;
-      return Array.isArray(d) ? d : d.items ?? [];
-    }),
+    queryFn: () => api.get<{ data: ConfigEntry[] }>('/system/config').then(r => r.data.data),
   });
 
   const health = useQuery({
@@ -52,7 +51,7 @@ export default function SettingsPage() {
     if (configs) {
       const values: Record<string, string> = {};
       for (const c of configs) {
-        values[c.key] = c.value;
+        values[c.configKey] = c.configValue;
       }
       setEditValues(values);
     }
@@ -119,25 +118,25 @@ export default function SettingsPage() {
                 </div>
                 <div className="divide-y divide-gray-100">
                   {groups[cat].map((entry) => (
-                    <div key={entry.key} className="px-6 py-4 flex items-center gap-4">
+                    <div key={entry.configKey} className="px-6 py-4 flex items-center gap-4">
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{entry.key}</p>
+                        <p className="text-sm font-medium text-gray-900">{entry.configKey}</p>
                         {entry.description && (
                           <p className="text-xs text-gray-500 mt-0.5">{entry.description}</p>
                         )}
                       </div>
                       <input
                         type="text"
-                        value={editValues[entry.key] ?? ''}
-                        onChange={(e) => setEditValues({ ...editValues, [entry.key]: e.target.value })}
+                        value={editValues[entry.configKey] ?? ''}
+                        onChange={(e) => setEditValues({ ...editValues, [entry.configKey]: e.target.value })}
                         className="w-64 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                       <button
-                        onClick={() => saveMutation.mutate({ key: entry.key, value: editValues[entry.key] ?? '' })}
-                        disabled={saveMutation.isPending || editValues[entry.key] === entry.value}
+                        onClick={() => saveMutation.mutate({ key: entry.configKey, value: editValues[entry.configKey] ?? '' })}
+                        disabled={saveMutation.isPending || editValues[entry.configKey] === entry.configValue}
                         className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
                       >
-                        {savedKeys.has(entry.key) ? 'Saved!' : 'Save'}
+                        {savedKeys.has(entry.configKey) ? 'Saved!' : 'Save'}
                       </button>
                     </div>
                   ))}

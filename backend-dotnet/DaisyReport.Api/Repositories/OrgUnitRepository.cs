@@ -18,8 +18,7 @@ public class OrgUnitRepository : IOrgUnitRepository
         using var conn = await _database.GetConnectionAsync();
         return await conn.QuerySingleOrDefaultAsync<OrgUnit>(
             @"SELECT id AS Id, name AS Name, description AS Description,
-                     parent_id AS ParentId, is_active AS IsActive,
-                     created_at AS CreatedAt, updated_at AS UpdatedAt
+                     parent_id AS ParentId, created_at AS CreatedAt
               FROM RS_ORG_UNIT WHERE id = @Id",
             new { Id = id });
     }
@@ -29,8 +28,7 @@ public class OrgUnitRepository : IOrgUnitRepository
         using var conn = await _database.GetConnectionAsync();
         var units = await conn.QueryAsync<OrgUnit>(
             @"SELECT id AS Id, name AS Name, description AS Description,
-                     parent_id AS ParentId, is_active AS IsActive,
-                     created_at AS CreatedAt, updated_at AS UpdatedAt
+                     parent_id AS ParentId, created_at AS CreatedAt
               FROM RS_ORG_UNIT
               ORDER BY parent_id ASC, name ASC");
         return units.ToList();
@@ -42,17 +40,15 @@ public class OrgUnitRepository : IOrgUnitRepository
         using var tx = conn.BeginTransaction();
 
         var id = await conn.ExecuteScalarAsync<long>(
-            @"INSERT INTO RS_ORG_UNIT (name, description, parent_id, is_active, created_at, updated_at)
-              VALUES (@Name, @Description, @ParentId, @IsActive, @CreatedAt, @UpdatedAt);
+            @"INSERT INTO RS_ORG_UNIT (name, description, parent_id, created_at)
+              VALUES (@Name, @Description, @ParentId, @CreatedAt);
               SELECT LAST_INSERT_ID();",
             new
             {
                 orgUnit.Name,
                 orgUnit.Description,
                 orgUnit.ParentId,
-                orgUnit.IsActive,
-                orgUnit.CreatedAt,
-                orgUnit.UpdatedAt
+                orgUnit.CreatedAt
             },
             tx);
 
@@ -84,17 +80,14 @@ public class OrgUnitRepository : IOrgUnitRepository
         using var conn = await _database.GetConnectionAsync();
         var rows = await conn.ExecuteAsync(
             @"UPDATE RS_ORG_UNIT SET
-                name = @Name, description = @Description, parent_id = @ParentId,
-                is_active = @IsActive, updated_at = @UpdatedAt
+                name = @Name, description = @Description, parent_id = @ParentId
               WHERE id = @Id",
             new
             {
                 orgUnit.Id,
                 orgUnit.Name,
                 orgUnit.Description,
-                orgUnit.ParentId,
-                orgUnit.IsActive,
-                orgUnit.UpdatedAt
+                orgUnit.ParentId
             });
         return rows > 0;
     }

@@ -25,7 +25,7 @@ public class SchedulerRepository : ISchedulerRepository
                      occurrence_count AS OccurrenceCount, max_occurrences AS MaxOccurrences,
                      lock_owner AS LockOwner, lock_acquired_at AS LockAcquiredAt,
                      heartbeat_at AS HeartbeatAt, created_at AS CreatedAt, updated_at AS UpdatedAt
-              FROM RS_SCHEDULE_JOBS WHERE id = @Id",
+              FROM RS_SCHEDULE_JOB WHERE id = @Id",
             new { Id = id });
 
         if (job != null)
@@ -44,7 +44,7 @@ public class SchedulerRepository : ISchedulerRepository
         var offset = (page - 1) * pageSize;
 
         var total = await conn.ExecuteScalarAsync<int>(
-            $"SELECT COUNT(*) FROM RS_SCHEDULE_JOBS {whereClause}",
+            $"SELECT COUNT(*) FROM RS_SCHEDULE_JOB {whereClause}",
             new { Status = status });
 
         var jobs = (await conn.QueryAsync<ScheduleJob>(
@@ -56,7 +56,7 @@ public class SchedulerRepository : ISchedulerRepository
                       occurrence_count AS OccurrenceCount, max_occurrences AS MaxOccurrences,
                       lock_owner AS LockOwner, lock_acquired_at AS LockAcquiredAt,
                       heartbeat_at AS HeartbeatAt, created_at AS CreatedAt, updated_at AS UpdatedAt
-               FROM RS_SCHEDULE_JOBS {whereClause}
+               FROM RS_SCHEDULE_JOB {whereClause}
                ORDER BY next_fire_time ASC
                LIMIT @PageSize OFFSET @Offset",
             new { Status = status, PageSize = pageSize, Offset = offset })).ToList();
@@ -68,7 +68,7 @@ public class SchedulerRepository : ISchedulerRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var id = await conn.ExecuteScalarAsync<long>(
-            @"INSERT INTO RS_SCHEDULE_JOBS (name, description, report_id, owner_id, status,
+            @"INSERT INTO RS_SCHEDULE_JOB (name, description, report_id, owner_id, status,
                      schedule_type, schedule_expression, timezone, next_fire_time, last_fire_time,
                      retry_count, max_retries, occurrence_count, max_occurrences,
                      created_at, updated_at)
@@ -103,7 +103,7 @@ public class SchedulerRepository : ISchedulerRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var rows = await conn.ExecuteAsync(
-            @"UPDATE RS_SCHEDULE_JOBS SET
+            @"UPDATE RS_SCHEDULE_JOB SET
                 name = @Name, description = @Description, report_id = @ReportId,
                 owner_id = @OwnerId, status = @Status, schedule_type = @ScheduleType,
                 schedule_expression = @ScheduleExpression, timezone = @Timezone,
@@ -132,9 +132,9 @@ public class SchedulerRepository : ISchedulerRepository
     public async Task<bool> DeleteAsync(long id)
     {
         using var conn = await _database.GetConnectionAsync();
-        await conn.ExecuteAsync("DELETE FROM RS_JOB_ACTIONS WHERE job_id = @Id", new { Id = id });
-        await conn.ExecuteAsync("DELETE FROM RS_JOB_EXECUTIONS WHERE job_id = @Id", new { Id = id });
-        var rows = await conn.ExecuteAsync("DELETE FROM RS_SCHEDULE_JOBS WHERE id = @Id", new { Id = id });
+        await conn.ExecuteAsync("DELETE FROM RS_JOB_ACTION WHERE job_id = @Id", new { Id = id });
+        await conn.ExecuteAsync("DELETE FROM RS_JOB_EXECUTION WHERE job_id = @Id", new { Id = id });
+        var rows = await conn.ExecuteAsync("DELETE FROM RS_SCHEDULE_JOB WHERE id = @Id", new { Id = id });
         return rows > 0;
     }
 
@@ -150,7 +150,7 @@ public class SchedulerRepository : ISchedulerRepository
                      occurrence_count AS OccurrenceCount, max_occurrences AS MaxOccurrences,
                      lock_owner AS LockOwner, lock_acquired_at AS LockAcquiredAt,
                      heartbeat_at AS HeartbeatAt, created_at AS CreatedAt, updated_at AS UpdatedAt
-              FROM RS_SCHEDULE_JOBS
+              FROM RS_SCHEDULE_JOB
               WHERE status IN ('WAITING', 'FAILED')
                 AND next_fire_time <= @Now
                 AND lock_owner IS NULL",
@@ -163,7 +163,7 @@ public class SchedulerRepository : ISchedulerRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var rows = await conn.ExecuteAsync(
-            @"UPDATE RS_SCHEDULE_JOBS SET
+            @"UPDATE RS_SCHEDULE_JOB SET
                 lock_owner = @InstanceId, lock_acquired_at = @Now, heartbeat_at = @Now,
                 status = 'EXECUTING'
               WHERE id = @JobId AND lock_owner IS NULL",
@@ -175,7 +175,7 @@ public class SchedulerRepository : ISchedulerRepository
     {
         using var conn = await _database.GetConnectionAsync();
         await conn.ExecuteAsync(
-            @"UPDATE RS_SCHEDULE_JOBS SET
+            @"UPDATE RS_SCHEDULE_JOB SET
                 lock_owner = NULL, lock_acquired_at = NULL, heartbeat_at = NULL
               WHERE id = @JobId",
             new { JobId = jobId });
@@ -185,7 +185,7 @@ public class SchedulerRepository : ISchedulerRepository
     {
         using var conn = await _database.GetConnectionAsync();
         await conn.ExecuteAsync(
-            "UPDATE RS_SCHEDULE_JOBS SET heartbeat_at = @Now WHERE id = @JobId",
+            "UPDATE RS_SCHEDULE_JOB SET heartbeat_at = @Now WHERE id = @JobId",
             new { JobId = jobId, Now = DateTime.UtcNow });
     }
 
@@ -193,7 +193,7 @@ public class SchedulerRepository : ISchedulerRepository
     {
         using var conn = await _database.GetConnectionAsync();
         await conn.ExecuteAsync(
-            @"UPDATE RS_SCHEDULE_JOBS SET
+            @"UPDATE RS_SCHEDULE_JOB SET
                 status = @Status, next_fire_time = @NextFireTime,
                 last_fire_time = @Now, updated_at = @Now
               WHERE id = @JobId",
@@ -213,7 +213,7 @@ public class SchedulerRepository : ISchedulerRepository
                      occurrence_count AS OccurrenceCount, max_occurrences AS MaxOccurrences,
                      lock_owner AS LockOwner, lock_acquired_at AS LockAcquiredAt,
                      heartbeat_at AS HeartbeatAt, created_at AS CreatedAt, updated_at AS UpdatedAt
-              FROM RS_SCHEDULE_JOBS
+              FROM RS_SCHEDULE_JOB
               WHERE status = 'EXECUTING'
                 AND heartbeat_at < @Cutoff",
             new { Cutoff = cutoff })).ToList();
@@ -227,7 +227,7 @@ public class SchedulerRepository : ISchedulerRepository
         var offset = (page - 1) * pageSize;
 
         var total = await conn.ExecuteScalarAsync<int>(
-            "SELECT COUNT(*) FROM RS_JOB_EXECUTIONS WHERE job_id = @JobId",
+            "SELECT COUNT(*) FROM RS_JOB_EXECUTION WHERE job_id = @JobId",
             new { JobId = jobId });
 
         var executions = (await conn.QueryAsync<JobExecution>(
@@ -235,7 +235,7 @@ public class SchedulerRepository : ISchedulerRepository
                      started_at AS StartedAt, completed_at AS CompletedAt,
                      duration_ms AS DurationMs, output_size AS OutputSize,
                      error_message AS ErrorMessage, retry_attempt AS RetryAttempt
-              FROM RS_JOB_EXECUTIONS
+              FROM RS_JOB_EXECUTION
               WHERE job_id = @JobId
               ORDER BY started_at DESC
               LIMIT @PageSize OFFSET @Offset",
@@ -248,7 +248,7 @@ public class SchedulerRepository : ISchedulerRepository
     {
         using var conn = await _database.GetConnectionAsync();
         var id = await conn.ExecuteScalarAsync<long>(
-            @"INSERT INTO RS_JOB_EXECUTIONS (job_id, status, started_at, completed_at,
+            @"INSERT INTO RS_JOB_EXECUTION (job_id, status, started_at, completed_at,
                      duration_ms, output_size, error_message, retry_attempt)
               VALUES (@JobId, @Status, @StartedAt, @CompletedAt,
                      @DurationMs, @OutputSize, @ErrorMessage, @RetryAttempt);
@@ -271,7 +271,7 @@ public class SchedulerRepository : ISchedulerRepository
     {
         using var conn = await _database.GetConnectionAsync();
         await conn.ExecuteAsync(
-            @"UPDATE RS_JOB_EXECUTIONS SET
+            @"UPDATE RS_JOB_EXECUTION SET
                 status = @Status, completed_at = @CompletedAt,
                 duration_ms = @DurationMs, output_size = @OutputSize,
                 error_message = @ErrorMessage
@@ -293,7 +293,7 @@ public class SchedulerRepository : ISchedulerRepository
         var actions = (await conn.QueryAsync<JobAction>(
             @"SELECT id AS Id, job_id AS JobId, action_type AS ActionType,
                      datasink_id AS DatasinkId, config AS Config, sort_order AS SortOrder
-              FROM RS_JOB_ACTIONS
+              FROM RS_JOB_ACTION
               WHERE job_id = @JobId
               ORDER BY sort_order",
             new { JobId = jobId })).ToList();

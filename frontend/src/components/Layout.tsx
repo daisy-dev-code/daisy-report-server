@@ -1,5 +1,6 @@
 import { Outlet, NavLink } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
+import api from '../api/client';
 
 const navItems = [
   { path: '/', label: 'Dashboard' },
@@ -12,6 +13,15 @@ const navItems = [
 
 export default function Layout() {
   const { user, logout } = useAuthStore();
+
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch {
+      // Ignore errors — clear local state regardless
+    }
+    logout();
+  };
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -41,7 +51,7 @@ export default function Layout() {
         <div className="p-4 border-t border-gray-700">
           <p className="text-sm text-gray-300">{user?.username ?? 'User'}</p>
           <button
-            onClick={logout}
+            onClick={handleLogout}
             className="text-xs text-gray-400 hover:text-white mt-1"
           >
             Sign out

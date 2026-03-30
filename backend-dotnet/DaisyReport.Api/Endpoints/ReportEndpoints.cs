@@ -156,11 +156,11 @@ public static class ReportEndpoints
                 p.Id,
                 p.ReportId,
                 p.Name,
-                p.Label,
-                p.ParamType,
+                p.KeyField,
+                p.Type,
                 p.DefaultValue,
-                p.Required,
-                p.SortOrder
+                p.Mandatory,
+                p.Position
             })
         });
     }

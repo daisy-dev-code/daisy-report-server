@@ -18,19 +18,25 @@ interface Job {
 }
 
 interface PaginatedResponse {
-  items: Job[];
-  totalItems: number;
-  totalPages: number;
-  page: number;
-  pageSize: number;
+  data: Job[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 interface Execution {
   id: number;
+  jobId: number;
   status: string;
-  startTime: string;
-  endTime?: string;
-  message?: string;
+  startedAt: string;
+  completedAt?: string;
+  durationMs?: number;
+  outputSize?: number;
+  errorMessage?: string;
+  retryAttempt?: number;
 }
 
 interface JobForm {
@@ -73,7 +79,7 @@ export default function SchedulerPage() {
   const historyQuery = useQuery({
     queryKey: ['job-history', historyJobId],
     queryFn: () =>
-      api.get<{ items: Execution[] }>(`/scheduler/jobs/${historyJobId}/executions`).then(r => r.data.items ?? r.data),
+      api.get<{ data: Execution[]; pagination: { total: number } }>(`/scheduler/jobs/${historyJobId}/executions`).then(r => r.data.data),
     enabled: historyJobId !== null,
   });
 
@@ -170,9 +176,9 @@ export default function SchedulerPage() {
       <h2 className="text-2xl font-bold mb-4">Scheduler</h2>
       <DataTable
         columns={columns}
-        data={data?.items ?? []}
+        data={data?.data ?? []}
         loading={isLoading}
-        pagination={data ? { page: data.page, pageSize: data.pageSize, totalItems: data.totalItems, totalPages: data.totalPages } : undefined}
+        pagination={data ? { page: data.pagination.page, pageSize: data.pagination.pageSize, totalItems: data.pagination.total, totalPages: data.pagination.totalPages } : undefined}
         onPageChange={setPage}
         searchValue={search}
         onSearch={(v) => { setSearch(v); setPage(1); }}
@@ -283,9 +289,9 @@ export default function SchedulerPage() {
                   (Array.isArray(historyQuery.data) ? historyQuery.data : []).map((exec) => (
                     <tr key={exec.id}>
                       <td className="px-4 py-2"><Badge text={exec.status} variant={statusBadgeVariant(exec.status)} /></td>
-                      <td className="px-4 py-2">{formatDateTime(exec.startTime)}</td>
-                      <td className="px-4 py-2">{formatDateTime(exec.endTime)}</td>
-                      <td className="px-4 py-2 text-gray-600">{exec.message ?? '-'}</td>
+                      <td className="px-4 py-2">{formatDateTime(exec.startedAt)}</td>
+                      <td className="px-4 py-2">{formatDateTime(exec.completedAt)}</td>
+                      <td className="px-4 py-2 text-gray-600">{exec.errorMessage ?? '-'}</td>
                     </tr>
                   ))
                 )}

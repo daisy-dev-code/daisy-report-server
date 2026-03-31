@@ -356,69 +356,101 @@ public class DiscoveryService : IDiscoveryService
     }
 
     /// <summary>
-    /// Try connecting to SQL Server / MySQL by hostname using .NET data providers directly.
-    /// This works even when TCP port scanning fails (named pipes, Windows auth, etc.)
+    /// Try connecting to SQL Server using every method SSMS uses:
+    /// Named Pipes (np:), TCP, Windows Auth, SQL Auth, various instance names.
+    /// Also tries MySQL and PostgreSQL by hostname.
     /// </summary>
     private async Task<DiscoveryResult?> TryDirectSqlConnectionAsync(string host, string? username, string? password)
     {
-        // Try SQL Server with Windows Auth (integrated security)
-        try
-        {
-            var connStr = $"Server={host};Database=master;Integrated Security=true;TrustServerCertificate=true;Connect Timeout=5";
-            using var conn = new Microsoft.Data.SqlClient.SqlConnection(connStr);
-            await conn.OpenAsync();
-            var version = (string?)await new Microsoft.Data.SqlClient.SqlCommand("SELECT @@VERSION", conn).ExecuteScalarAsync();
-            var databases = new List<string>();
-            using var cmd = new Microsoft.Data.SqlClient.SqlCommand("SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name", conn);
-            using var reader = await cmd.ExecuteReaderAsync();
-            while (await reader.ReadAsync()) databases.Add(reader.GetString(0));
+        // Build list of connection strings to try, in order of likelihood
+        var attempts = new List<(string ConnStr, string Description)>();
 
-            return new DiscoveryResult
+        // Common SQL Server instance names to try
+        var instanceNames = new[] { "", "SQLEXPRESS", "MSSQLSERVER", "SQL2019", "SQL2022", "SQL2017" };
+        var hostBase = host.Contains('\\') ? host : host; // already has instance name if passed
+
+        foreach (var instance in instanceNames)
+        {
+            var serverName = string.IsNullOrEmpty(instance) ? hostBase : $"{hostBase}\\{instance}";
+
+            // Windows Auth (Integrated Security) — most common in enterprise
+            attempts.Add((
+                $"Server={serverName};Database=master;Integrated Security=true;TrustServerCertificate=true;Connect Timeout=5;Encrypt=false",
+                $"TCP Windows Auth → {serverName}"));
+
+            // Named Pipes with Windows Auth — works when TCP is firewalled
+            attempts.Add((
+                $"Server=np:{serverName};Database=master;Integrated Security=true;TrustServerCertificate=true;Connect Timeout=5;Encrypt=false",
+                $"Named Pipes Windows Auth → {serverName}"));
+
+            // SQL Auth if credentials provided
+            if (!string.IsNullOrEmpty(username))
             {
-                Host = host,
-                Port = 1433,
-                ServiceType = "MSSQL",
-                ServiceVersion = version?.Split('\n').FirstOrDefault()?.Trim(),
-                IsAccessible = true,
-                LatencyMs = 0,
-                Databases = databases,
-                ConnectionString = $"Server={host};Database=;Integrated Security=true;TrustServerCertificate=true"
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug("SQL Server Windows Auth failed for {Host}: {Error}", host, ex.Message);
+                attempts.Add((
+                    $"Server={serverName};Database=master;User Id={username};Password={password};TrustServerCertificate=true;Connect Timeout=5;Encrypt=false",
+                    $"TCP SQL Auth → {serverName}"));
+
+                attempts.Add((
+                    $"Server=np:{serverName};Database=master;User Id={username};Password={password};TrustServerCertificate=true;Connect Timeout=5;Encrypt=false",
+                    $"Named Pipes SQL Auth → {serverName}"));
+            }
         }
 
-        // Try SQL Server with credentials if provided
-        if (!string.IsNullOrEmpty(username))
+        // Try each connection string
+        foreach (var (connStr, desc) in attempts)
         {
             try
             {
-                var connStr = $"Server={host};Database=master;User Id={username};Password={password};TrustServerCertificate=true;Connect Timeout=5";
+                _logger.LogDebug("Trying SQL Server: {Description}", desc);
                 using var conn = new Microsoft.Data.SqlClient.SqlConnection(connStr);
-                await conn.OpenAsync();
+                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                await conn.OpenAsync(cts.Token);
+
+                // Connected! Get version and databases
                 var version = (string?)await new Microsoft.Data.SqlClient.SqlCommand("SELECT @@VERSION", conn).ExecuteScalarAsync();
+                var serverNameResult = (string?)await new Microsoft.Data.SqlClient.SqlCommand("SELECT @@SERVERNAME", conn).ExecuteScalarAsync();
+                var instanceNameResult = (string?)await new Microsoft.Data.SqlClient.SqlCommand("SELECT ISNULL(SERVERPROPERTY('InstanceName'), 'DEFAULT')", conn).ExecuteScalarAsync();
+
+                var databases = new List<string>();
+                try
+                {
+                    using var cmd = new Microsoft.Data.SqlClient.SqlCommand("SELECT name FROM sys.databases WHERE database_id > 4 ORDER BY name", conn);
+                    using var reader = await cmd.ExecuteReaderAsync();
+                    while (await reader.ReadAsync()) databases.Add(reader.GetString(0));
+                }
+                catch { /* may not have permission to list databases */ }
+
+                _logger.LogInformation("SQL Server FOUND via {Description}: {ServerName} ({Version}), {DbCount} databases",
+                    desc, serverNameResult, version?.Split('\n').FirstOrDefault()?.Trim(), databases.Count);
+
+                // Build a clean connection string for the user (without password)
+                var cleanConnStr = connStr.Contains("Integrated Security=true")
+                    ? $"Server={serverNameResult};Database=;Integrated Security=true;TrustServerCertificate=true"
+                    : $"Server={serverNameResult};Database=;User Id={username};Password=;TrustServerCertificate=true";
 
                 return new DiscoveryResult
                 {
                     Host = host,
                     Port = 1433,
                     ServiceType = "MSSQL",
+                    ServerName = serverNameResult,
+                    InstanceName = instanceNameResult?.ToString(),
                     ServiceVersion = version?.Split('\n').FirstOrDefault()?.Trim(),
                     IsAccessible = true,
-                    ConnectionString = $"Server={host};Database=;User Id={username};Password=;TrustServerCertificate=true"
+                    Databases = databases,
+                    ConnectionString = cleanConnStr
                 };
             }
             catch (Exception ex)
             {
-                _logger.LogDebug("SQL Server credential auth failed for {Host}: {Error}", host, ex.Message);
+                _logger.LogDebug("SQL Server attempt failed ({Description}): {Error}", desc, ex.Message);
             }
         }
 
         // Try MySQL by hostname
         try
         {
+            _logger.LogDebug("Trying MySQL direct connect to {Host}", host);
             var connStr = $"Server={host};Port=3306;User={username ?? "root"};Password={password ?? ""};SslMode=None;Connect Timeout=5;AllowUserVariables=true";
             using var conn = new MySqlConnector.MySqlConnection(connStr);
             await conn.OpenAsync();
@@ -436,6 +468,29 @@ public class DiscoveryService : IDiscoveryService
         catch (Exception ex)
         {
             _logger.LogDebug("MySQL direct connect failed for {Host}: {Error}", host, ex.Message);
+        }
+
+        // Try PostgreSQL by hostname
+        try
+        {
+            _logger.LogDebug("Trying PostgreSQL direct connect to {Host}", host);
+            var connStr = $"Host={host};Port=5432;Username={username ?? "postgres"};Password={password ?? ""};Database=postgres;Timeout=5";
+            using var conn = new Npgsql.NpgsqlConnection(connStr);
+            await conn.OpenAsync();
+
+            return new DiscoveryResult
+            {
+                Host = host,
+                Port = 5432,
+                ServiceType = "POSTGRESQL",
+                ServiceVersion = conn.ServerVersion,
+                IsAccessible = true,
+                ConnectionString = $"Host={host};Port=5432;Database=;Username={username ?? "postgres"};Password=;"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("PostgreSQL direct connect failed for {Host}: {Error}", host, ex.Message);
         }
 
         return null;

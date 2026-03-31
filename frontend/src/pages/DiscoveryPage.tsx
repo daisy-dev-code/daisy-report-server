@@ -483,14 +483,12 @@ export default function DiscoveryPage() {
                     {(svc.latency ?? svc.latencyMs) != null && (svc.latency ?? svc.latencyMs)! > 0 && <p className="text-xs text-gray-500">Latency: {svc.latency ?? svc.latencyMs}ms</p>}
                     {svc.connectionString && <p className="font-mono text-xs text-gray-400 truncate" title={svc.connectionString}>{svc.connectionString}</p>}
                     {svc.errorMessage && <p className="text-xs text-yellow-600">{svc.errorMessage}</p>}
-                    {svc.accessible && (
-                      <button
-                        onClick={() => openAddDatasource(svc)}
-                        className="mt-auto text-sm text-blue-600 hover:text-blue-800 font-medium text-left"
-                      >
-                        Add as Datasource
-                      </button>
-                    )}
+                    <button
+                      onClick={() => openAddDatasource(svc)}
+                      className="mt-2 w-full text-sm bg-blue-600 text-white py-1.5 px-3 rounded-lg hover:bg-blue-700 font-medium"
+                    >
+                      Add as Datasource
+                    </button>
                   </div>
                 ))}
               </div>

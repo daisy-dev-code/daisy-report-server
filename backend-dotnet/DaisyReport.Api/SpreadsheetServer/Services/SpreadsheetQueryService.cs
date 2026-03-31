@@ -203,14 +203,21 @@ public class SpreadsheetQueryService : ISpreadsheetQueryService
             if (string.IsNullOrWhiteSpace(config.GlBalanceQuery))
                 return new ScalarResult { Error = "GL balance query template not configured" };
 
+            // Use parameterized queries to prevent SQL injection
             var sql = config.GlBalanceQuery
-                .Replace("{Account}", request.Account)
-                .Replace("{Period}", request.Period.ToString())
-                .Replace("{Year}", request.Year.ToString())
-                .Replace("{BalanceType}", balType);
+                .Replace("{Account}", "@glAccount")
+                .Replace("{Period}", "@glPeriod")
+                .Replace("{Year}", "@glYear")
+                .Replace("{BalanceType}", "@glBalType");
 
             using var conn = await OpenDatasourceConnectionAsync(request.ConnectionId);
-            var value = await conn.ExecuteScalarAsync(sql);
+            var value = await conn.ExecuteScalarAsync(sql, new
+            {
+                glAccount = request.Account,
+                glPeriod = request.Period,
+                glYear = request.Year,
+                glBalType = balType
+            }, commandTimeout: 30);
 
             var result = new ScalarResult { Value = value, ExecutionTimeMs = sw.ElapsedMilliseconds };
             await _redisCache.SetAsync(cacheKey, result, CacheExpiry);
@@ -249,12 +256,13 @@ public class SpreadsheetQueryService : ISpreadsheetQueryService
                 return new QueryResult { Error = "GL detail query template not configured" };
 
             var sql = config.GlDetailQuery
-                .Replace("{Account}", request.Account)
-                .Replace("{Period}", request.Period.ToString())
-                .Replace("{Year}", request.Year.ToString());
+                .Replace("{Account}", "@glAccount")
+                .Replace("{Period}", "@glPeriod")
+                .Replace("{Year}", "@glYear");
 
             using var conn = await OpenDatasourceConnectionAsync(request.ConnectionId);
-            using var reader = await conn.ExecuteReaderAsync(sql);
+            var cmd = new Dapper.CommandDefinition(sql, new { glAccount = request.Account, glPeriod = request.Period, glYear = request.Year }, commandTimeout: 30);
+            using var reader = await conn.ExecuteReaderAsync(cmd);
 
             var result = ReadQueryResult(reader, request.MaxRows);
             result.ExecutionTimeMs = sw.ElapsedMilliseconds;
@@ -299,14 +307,21 @@ public class SpreadsheetQueryService : ISpreadsheetQueryService
                 return new ScalarResult { Error = "GL range query template not configured" };
 
             var sql = config.GlRangeQuery
-                .Replace("{AccountFrom}", request.AccountFrom)
-                .Replace("{AccountTo}", request.AccountTo)
-                .Replace("{Period}", request.Period.ToString())
-                .Replace("{Year}", request.Year.ToString())
-                .Replace("{BalanceType}", balType);
+                .Replace("{AccountFrom}", "@glAccountFrom")
+                .Replace("{AccountTo}", "@glAccountTo")
+                .Replace("{Period}", "@glPeriod")
+                .Replace("{Year}", "@glYear")
+                .Replace("{BalanceType}", "@glBalType");
 
             using var conn = await OpenDatasourceConnectionAsync(request.ConnectionId);
-            var value = await conn.ExecuteScalarAsync(sql);
+            var value = await conn.ExecuteScalarAsync(sql, new
+            {
+                glAccountFrom = request.AccountFrom,
+                glAccountTo = request.AccountTo,
+                glPeriod = request.Period,
+                glYear = request.Year,
+                glBalType = balType
+            }, commandTimeout: 30);
 
             var result = new ScalarResult { Value = value, ExecutionTimeMs = sw.ElapsedMilliseconds };
             await _redisCache.SetAsync(cacheKey, result, CacheExpiry);

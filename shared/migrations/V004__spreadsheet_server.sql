@@ -1,5 +1,10 @@
 -- V004: Spreadsheet Server tables
 
+-- Add provider_type and native connection_string to existing datasource table
+ALTER TABLE RS_DATABASE_DATASOURCE
+    ADD COLUMN IF NOT EXISTS provider_type TINYINT NULL COMMENT '0=SqlServer,1=Oracle,2=PostgreSql,3=MySql,4=Odbc,5=OleDb,6=Sqlite',
+    ADD COLUMN IF NOT EXISTS connection_string TEXT NULL COMMENT 'Native ADO.NET connection string (alternative to jdbc_url)';
+
 CREATE TABLE IF NOT EXISTS RS_SAVED_QUERY (
     id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(200) NOT NULL,

@@ -13,7 +13,10 @@ using DaisyReport.Api.PowerBi;
 using DaisyReport.Api.PowerBi.Endpoints;
 using DaisyReport.Api.PowerBi.Services;
 using DaisyReport.Api.ReportEngine;
+using DaisyReport.Api.SpreadsheetServer.Distribution;
+using DaisyReport.Api.SpreadsheetServer.Distribution.Endpoints;
 using DaisyReport.Api.SpreadsheetServer.Endpoints;
+using DaisyReport.Api.SpreadsheetServer.GlEngine;
 using DaisyReport.Api.SpreadsheetServer.Services;
 using DaisyReport.Api.Repositories;
 using DaisyReport.Api.Services;
@@ -93,6 +96,8 @@ try
     // Spreadsheet Server
     builder.Services.AddScoped<ISpreadsheetQueryService, SpreadsheetQueryService>();
     builder.Services.AddScoped<ISavedQueryService, SavedQueryService>();
+    builder.Services.AddScoped<IGlFormulaProcessor, GlFormulaProcessor>();
+    builder.Services.AddScoped<IDistributionEngine, DistributionEngine>();
 
     // Background Services
     builder.Services.AddHostedService<SchedulerService>();
@@ -193,6 +198,8 @@ try
     app.MapPowerBiEndpoints();
     app.MapDiscoveryEndpoints();
     app.MapSpreadsheetEndpoints();
+    app.MapGlEndpoints();
+    app.MapDistributionEndpoints();
     app.MapMetadataEndpoints();
 
     app.Run();

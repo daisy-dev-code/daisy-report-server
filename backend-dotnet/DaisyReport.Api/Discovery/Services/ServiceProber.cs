@@ -17,6 +17,16 @@ public interface IServiceProber
     Task<DiscoveryResult?> ProbeRedisAsync(string host, int port);
     Task<DiscoveryResult?> ProbeElasticsearchAsync(string host, int port);
     Task<DiscoveryResult?> ProbeHttpAsync(string host, int port);
+    Task<List<SqlServerInstance>> QuerySqlBrowserAsync(string host, int timeoutMs = 3000);
+}
+
+public class SqlServerInstance
+{
+    public string ServerName { get; set; } = "";
+    public string InstanceName { get; set; } = "";
+    public int Port { get; set; }
+    public string? Version { get; set; }
+    public bool IsClustered { get; set; }
 }
 
 public class ServiceProber : IServiceProber
@@ -761,6 +771,87 @@ public class ServiceProber : IServiceProber
         writer.Write(bsonDoc);
 
         return ms.ToArray();
+    }
+
+    #endregion
+
+    #region SQL Server Browser (UDP 1434)
+
+    /// <summary>
+    /// Query SQL Server Browser Service on UDP 1434 to discover all instances and their ports.
+    /// This is how SSMS discovers named instances — sends 0x02 byte, gets back a semicolon-delimited response.
+    /// </summary>
+    public async Task<List<SqlServerInstance>> QuerySqlBrowserAsync(string host, int timeoutMs = 3000)
+    {
+        var instances = new List<SqlServerInstance>();
+        try
+        {
+            using var udp = new UdpClient();
+            udp.Client.ReceiveTimeout = timeoutMs;
+
+            var resolvedAddresses = await System.Net.Dns.GetHostAddressesAsync(host);
+            var targetAddress = resolvedAddresses.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork)
+                ?? resolvedAddresses.FirstOrDefault();
+            if (targetAddress == null) return instances;
+
+            var endpoint = new System.Net.IPEndPoint(targetAddress, 1434);
+
+            // Send 0x02 = request all instances, 0x03 = request specific instance
+            await udp.SendAsync(new byte[] { 0x02 }, 1, endpoint);
+
+            // Wait for response with timeout
+            var receiveTask = udp.ReceiveAsync();
+            if (await Task.WhenAny(receiveTask, Task.Delay(timeoutMs)) != receiveTask)
+            {
+                _logger.LogDebug("SQL Browser on {Host} did not respond within {Timeout}ms", host, timeoutMs);
+                return instances;
+            }
+
+            var response = receiveTask.Result;
+            var responseText = Encoding.UTF8.GetString(response.Buffer, 3, response.Buffer.Length - 3);
+
+            _logger.LogInformation("SQL Browser response from {Host}: {Response}", host, responseText);
+
+            // Parse response: instances are separated by ";;", fields by ";"
+            // Format: ServerName;SERVERNAME;InstanceName;INSTANCE;IsClustered;No;Version;16.0.1135.2;tcp;1433;;
+            var instanceBlocks = responseText.Split(";;", StringSplitOptions.RemoveEmptyEntries);
+            foreach (var block in instanceBlocks)
+            {
+                var fields = block.Split(';');
+                var instance = new SqlServerInstance();
+
+                for (int i = 0; i < fields.Length - 1; i += 2)
+                {
+                    var key = fields[i].Trim();
+                    var value = fields[i + 1].Trim();
+                    switch (key.ToLowerInvariant())
+                    {
+                        case "servername": instance.ServerName = value; break;
+                        case "instancename": instance.InstanceName = value; break;
+                        case "isclustered": instance.IsClustered = value.Equals("Yes", StringComparison.OrdinalIgnoreCase); break;
+                        case "version": instance.Version = value; break;
+                        case "tcp": if (int.TryParse(value, out var port)) instance.Port = port; break;
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(instance.InstanceName))
+                {
+                    instances.Add(instance);
+                    _logger.LogInformation("Found SQL Server instance: {Server}\\{Instance} on port {Port} (v{Version})",
+                        instance.ServerName, instance.InstanceName, instance.Port, instance.Version);
+                }
+            }
+        }
+        catch (SocketException ex)
+        {
+            _logger.LogDebug("SQL Browser query failed for {Host}: {Error}", host, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug("SQL Browser query error for {Host}: {Error}", host, ex.Message);
+        }
+
+        return instances;
     }
 
     #endregion

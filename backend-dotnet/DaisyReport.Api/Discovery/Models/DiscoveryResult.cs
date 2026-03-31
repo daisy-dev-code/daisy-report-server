@@ -7,6 +7,7 @@ public class DiscoveryResult
     public string ServiceType { get; set; } = ""; // MYSQL, MSSQL, POSTGRESQL, ORACLE, REDIS, MONGODB, ELASTICSEARCH, etc.
     public string? ServiceVersion { get; set; }
     public string? ServerName { get; set; }
+    public string? InstanceName { get; set; }
     public bool IsAccessible { get; set; }
     public int LatencyMs { get; set; }
     public List<string> Databases { get; set; } = new();

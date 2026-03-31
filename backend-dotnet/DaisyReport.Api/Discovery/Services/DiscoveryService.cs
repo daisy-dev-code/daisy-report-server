@@ -99,26 +99,58 @@ public class DiscoveryService : IDiscoveryService
             .Select(r => r!)
             .ToList();
 
-        // If no database services found but host is alive, try SQL Server via hostname
-        // (SQL Server may be behind firewall but reachable via named pipes / hostname)
+        // Step 5: Query SQL Server Browser service (UDP 1434) for named instances
+        // This is how SSMS discovers instances — works even when TCP port scan fails
+        _logger.LogInformation("Querying SQL Server Browser on {Host} for named instances", host);
+        var sqlInstances = await _serviceProber.QuerySqlBrowserAsync(host);
+        if (sqlInstances.Count > 0)
+        {
+            _logger.LogInformation("SQL Browser found {Count} instance(s) on {Host}", sqlInstances.Count, host);
+            foreach (var instance in sqlInstances)
+            {
+                // Try connecting to each discovered instance
+                var instanceHost = host;
+                var instancePort = instance.Port > 0 ? instance.Port : 1433;
+                var connName = !string.IsNullOrEmpty(instance.InstanceName)
+                    ? $"{instanceHost}\\{instance.InstanceName}"
+                    : instanceHost;
+
+                var sqlResult = await TryDirectSqlConnectionAsync(connName, username, password);
+                if (sqlResult != null)
+                {
+                    sqlResult.ServerName = $"{instance.ServerName}\\{instance.InstanceName}";
+                    sqlResult.ServiceVersion = instance.Version;
+                    sqlResult.Port = instancePort;
+                    result.Services.Add(sqlResult);
+                }
+                else
+                {
+                    // Even if we can't connect, report the instance as discovered
+                    result.Services.Add(new DiscoveryResult
+                    {
+                        Host = host,
+                        Port = instancePort,
+                        ServiceType = "MSSQL",
+                        ServerName = $"{instance.ServerName}\\{instance.InstanceName}",
+                        ServiceVersion = instance.Version,
+                        IsAccessible = false,
+                        ConnectionString = $"Server={connName};Database=;TrustServerCertificate=true",
+                        ErrorMessage = "Instance discovered via SQL Browser but connection requires credentials"
+                    });
+                }
+            }
+        }
+
+        // Step 6: If still nothing, try direct connection by hostname
         if (!result.Services.Any() && result.IsAlive)
         {
             var hostToTry = result.Hostname ?? host;
-            _logger.LogInformation("No open database ports on {Host}, trying SQL Server connection by hostname {Hostname}", host, hostToTry);
+            _logger.LogInformation("No instances found via Browser on {Host}, trying direct connection to {Hostname}", host, hostToTry);
 
-            var sqlResult = await _serviceProber.ProbeSqlServerAsync(hostToTry, 1433, username, password);
-            if (sqlResult != null && sqlResult.IsAccessible)
+            var directResult = await TryDirectSqlConnectionAsync(hostToTry, username, password);
+            if (directResult != null)
             {
-                result.Services.Add(sqlResult);
-            }
-            else
-            {
-                // Try direct connection string approach (named pipes, etc.)
-                var directResult = await TryDirectSqlConnectionAsync(hostToTry, username, password);
-                if (directResult != null)
-                {
-                    result.Services.Add(directResult);
-                }
+                result.Services.Add(directResult);
             }
         }
 

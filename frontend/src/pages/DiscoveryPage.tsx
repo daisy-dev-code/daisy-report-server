@@ -20,6 +20,9 @@ interface DiscoveredService {
 
 interface ProbeResponse {
   host: string;
+  isAlive: boolean;
+  pingMs: number;
+  hostname: string | null;
   services: DiscoveredService[];
 }
 
@@ -174,7 +177,7 @@ export default function DiscoveryPage() {
   const [probeUser, setProbeUser] = useState('');
   const [probePass, setProbePass] = useState('');
   const [probeLoading, setProbeLoading] = useState(false);
-  const [probeResults, setProbeResults] = useState<DiscoveredService[] | null>(null);
+  const [probeResults, setProbeResults] = useState<ProbeResponse | null>(null);
   const [probeError, setProbeError] = useState('');
 
   /* --- Network Scan state --- */
@@ -205,7 +208,7 @@ export default function DiscoveryPage() {
   /* --- Well-Known Ports query --- */
   const portsQuery = useQuery({
     queryKey: ['discovery-ports'],
-    queryFn: () => api.get<{ ports: PortInfo[] }>('/discovery/ports').then(r => r.data.ports),
+    queryFn: () => api.get('/discovery/ports').then(r => (r.data?.data ?? r.data?.ports ?? r.data ?? []) as PortInfo[]),
     staleTime: 60_000 * 10,
   });
 
@@ -222,7 +225,7 @@ export default function DiscoveryPage() {
         username: probeUser || undefined,
         password: probePass || undefined,
       });
-      setProbeResults(res.data.services ?? []);
+      setProbeResults(res.data);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
       setProbeError(msg ?? 'Probe failed. Check the host and try again.');
@@ -433,11 +436,36 @@ export default function DiscoveryPage() {
 
         {probeResults !== null && !probeLoading && (
           <div className="mt-4">
-            {probeResults.length === 0 ? (
-              <p className="text-sm text-gray-500">No services found on this host.</p>
+            {/* Host info banner */}
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-3">
+                <span className={`w-3 h-3 rounded-full ${probeResults.isAlive ? 'bg-green-500' : 'bg-red-500'}`} />
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {probeResults.hostname ? `${probeResults.hostname} (${probeResults.host})` : probeResults.host}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {probeResults.isAlive ? `Host is alive (${probeResults.pingMs}ms)` : 'Host did not respond to ping'}
+                    {probeResults.services.length > 0
+                      ? ` - ${probeResults.services.length} database service(s) found`
+                      : ' - No accessible database services detected'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {probeResults.services.length === 0 ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="text-sm font-medium text-yellow-800">No accessible database services found</p>
+                <p className="text-xs text-yellow-700 mt-1">
+                  Scanned 18 database ports (MySQL, PostgreSQL, SQL Server, Oracle, MongoDB, Redis, Elasticsearch, etc.)
+                  and tried direct connections via hostname. The database may be behind a firewall, require VPN access,
+                  or use a non-standard port. Try providing credentials or check with your network administrator.
+                </p>
+              </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {probeResults.map((svc, i) => (
+                {probeResults.services.map((svc, i) => (
                   <div key={i} className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <ServiceBadge type={svc.serviceType} />

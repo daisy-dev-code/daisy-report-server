@@ -1,5 +1,7 @@
 using System.Text;
 using Dapper;
+using DaisyReport.Api.DataProviders;
+using DaisyReport.Api.DataProviders.Endpoints;
 using DaisyReport.Api.Discovery.Endpoints;
 using DaisyReport.Api.Discovery.Services;
 using DaisyReport.Api.DynamicList;
@@ -11,6 +13,8 @@ using DaisyReport.Api.PowerBi;
 using DaisyReport.Api.PowerBi.Endpoints;
 using DaisyReport.Api.PowerBi.Services;
 using DaisyReport.Api.ReportEngine;
+using DaisyReport.Api.SpreadsheetServer.Endpoints;
+using DaisyReport.Api.SpreadsheetServer.Services;
 using DaisyReport.Api.Repositories;
 using DaisyReport.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -81,6 +85,14 @@ try
     builder.Services.AddSingleton<IServiceProber, ServiceProber>();
     builder.Services.AddSingleton<IDnsResolver, DnsResolver>();
     builder.Services.AddScoped<IDiscoveryService, DiscoveryService>();
+
+    // Data Provider Abstraction Layer
+    builder.Services.AddSingleton<IDataProviderRegistry, DataProviderRegistry>();
+    builder.Services.AddScoped<IConnectionFactory, ConnectionFactory>();
+
+    // Spreadsheet Server
+    builder.Services.AddScoped<ISpreadsheetQueryService, SpreadsheetQueryService>();
+    builder.Services.AddScoped<ISavedQueryService, SavedQueryService>();
 
     // Background Services
     builder.Services.AddHostedService<SchedulerService>();
@@ -180,6 +192,8 @@ try
     app.MapConstantEndpoints();
     app.MapPowerBiEndpoints();
     app.MapDiscoveryEndpoints();
+    app.MapSpreadsheetEndpoints();
+    app.MapMetadataEndpoints();
 
     app.Run();
 }

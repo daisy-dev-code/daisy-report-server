@@ -7,6 +7,7 @@ const navItems = [
   { path: '/reports', label: 'Reports' },
   { path: '/datasources', label: 'Datasources' },
   { path: '/discovery', label: 'Discovery' },
+  { path: '/query-builder', label: 'Query Builder' },
   { path: '/scheduler', label: 'Scheduler' },
   { path: '/powerbi', label: 'Power BI' },
   { path: '/users', label: 'Users' },

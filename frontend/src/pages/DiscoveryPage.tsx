@@ -12,10 +12,17 @@ interface DiscoveredService {
   host: string;
   port: number;
   version?: string;
+  serviceVersion?: string;
   latency?: number;
-  accessible: boolean;
+  latencyMs?: number;
+  accessible?: boolean;
+  isAccessible?: boolean;
   hostname?: string;
+  serverName?: string;
+  instanceName?: string;
   databases?: string[];
+  connectionString?: string;
+  errorMessage?: string;
 }
 
 interface ProbeResponse {
@@ -273,14 +280,14 @@ export default function DiscoveryPage() {
 
   function openAddDatasource(svc: DiscoveredService) {
     const form: DatasourceForm = {
-      name: `${svc.serviceType} on ${svc.host}`,
+      name: svc.serverName ?? `${svc.serviceType} on ${svc.host}`,
       host: svc.host,
       port: svc.port,
       serviceType: svc.serviceType,
-      username: '',
+      username: probeUser || '',
       password: '',
       database: '',
-      connectionString: buildConnectionString(svc.serviceType, svc.host, svc.port, '', ''),
+      connectionString: svc.connectionString ?? buildConnectionString(svc.serviceType, svc.host, svc.port, '', ''),
     };
     setDsForm(form);
     setDsDiscoveredDbs(svc.databases ?? []);
@@ -353,11 +360,10 @@ export default function DiscoveryPage() {
   /* ── Scan results table columns ── */
 
   const scanColumns: Column<DiscoveredService>[] = [
-    { key: 'host', header: 'Host', render: (s) => <span className="font-medium text-gray-900">{s.host}</span> },
-    { key: 'hostname', header: 'Hostname', render: (s) => s.hostname || <span className="text-gray-400">--</span> },
+    { key: 'host', header: 'Host', render: (s) => <span className="font-medium text-gray-900">{s.serverName ?? s.host}</span> },
     { key: 'port', header: 'Port', render: (s) => <span className="font-mono text-xs">{s.port}</span> },
     { key: 'serviceType', header: 'Service', render: (s) => <ServiceBadge type={s.serviceType} /> },
-    { key: 'version', header: 'Version', render: (s) => s.version || <span className="text-gray-400">--</span> },
+    { key: 'version', header: 'Version', render: (s) => s.serviceVersion ?? s.version ?? '--' },
     {
       key: 'latency', header: 'Latency',
       render: (s) => s.latency != null ? <span className="text-xs text-gray-600">{s.latency}ms</span> : <span className="text-gray-400">--</span>,
@@ -469,11 +475,14 @@ export default function DiscoveryPage() {
                   <div key={i} className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <ServiceBadge type={svc.serviceType} />
-                      <Badge text={svc.accessible ? 'Accessible' : 'Unreachable'} variant={svc.accessible ? 'success' : 'error'} />
+                      <Badge text={(svc.accessible ?? svc.isAccessible) ? 'Accessible' : 'Discovered'} variant={(svc.accessible ?? svc.isAccessible) ? 'success' : 'info'} />
                     </div>
-                    <p className="font-mono text-sm text-gray-900">{svc.host}:{svc.port}</p>
-                    {svc.version && <p className="text-xs text-gray-500">Version: {svc.version}</p>}
-                    {svc.latency != null && <p className="text-xs text-gray-500">Latency: {svc.latency}ms</p>}
+                    {svc.serverName && <p className="font-medium text-sm text-gray-900">{svc.serverName}</p>}
+                    <p className="font-mono text-xs text-gray-600">{svc.host}:{svc.port}</p>
+                    {(svc.version || svc.serviceVersion) && <p className="text-xs text-gray-500">Version: {svc.serviceVersion ?? svc.version}</p>}
+                    {(svc.latency ?? svc.latencyMs) != null && (svc.latency ?? svc.latencyMs)! > 0 && <p className="text-xs text-gray-500">Latency: {svc.latency ?? svc.latencyMs}ms</p>}
+                    {svc.connectionString && <p className="font-mono text-xs text-gray-400 truncate" title={svc.connectionString}>{svc.connectionString}</p>}
+                    {svc.errorMessage && <p className="text-xs text-yellow-600">{svc.errorMessage}</p>}
                     {svc.accessible && (
                       <button
                         onClick={() => openAddDatasource(svc)}
